@@ -3,4 +3,9 @@
 GET {{ApiService_HostAddress}}/weatherforecast/
 Accept: application/json
 
+POST {{Shop.CatalogApi_HostAddress}}/products
+Content-Type: application/json
+
+{ "name": "Слушалки", "category": "Аксесоари", "price": 59.90 }
+
 ###
