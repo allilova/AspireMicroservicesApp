@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Shop.CatalogApi.Data;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,6 +13,8 @@ builder.Services.AddProblemDetails();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddDbContext<CatalogDbContext>(o => o.UseSqlite("Data Source=catalog.db"));
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<ProductsCache>();
 var app = builder.Build();
 // създава базата и добавя примерни продукти
 using (var scope = app.Services.CreateScope())
@@ -31,24 +34,32 @@ using (var scope = app.Services.CreateScope())
 
 var products = app.MapGroup("/products");
 
-products.MapGet("/", async (CatalogDbContext db, string? search, string? category) =>
+products.MapGet("/", async (CatalogDbContext db, IMemoryCache cache, ProductsCache pc, string? search, string? category) =>
 {
-    var query = db.Products.AsQueryable();
-    if (!string.IsNullOrWhiteSpace(search))
-        query = query.Where(p => p.Name.Contains(search));
-    if (!string.IsNullOrWhiteSpace(category))
-        query = query.Where(p => p.Category == category);
-    return await query.OrderBy(p => p.Name).ToListAsync();
+    var key = $"products:{search}:{category}";
+    return await cache.GetOrCreateAsync(key, async entry =>
+    {
+        entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+        entry.ExpirationTokens.Add(pc.GetToken());
+
+        var query = db.Products.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(p => p.Name.Contains(search));
+        if (!string.IsNullOrWhiteSpace(category))
+            query = query.Where(p => p.Category == category);
+        return await query.OrderBy(p => p.Name).ToListAsync();
+    });
 });
 
 products.MapGet("/{id:int}", async (int id, CatalogDbContext db) =>
     await db.Products.FindAsync(id) is Product p ? Results.Ok(p) : Results.NotFound());
 
-products.MapPost("/", async (Product input, CatalogDbContext db) =>
+products.MapPost("/", async (Product input, CatalogDbContext db, ProductsCache pc) =>
 {
     input.Id = 0;
     db.Products.Add(input);
     await db.SaveChangesAsync();
+    pc.Invalidate();
     return Results.Created($"/products/{input.Id}", input);
 });
 
