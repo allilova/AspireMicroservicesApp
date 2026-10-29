@@ -63,7 +63,7 @@ products.MapPost("/", async (Product input, CatalogDbContext db, ProductsCache p
     return Results.Created($"/products/{input.Id}", input);
 });
 
-products.MapPut("/{id:int}", async (int id, Product input, CatalogDbContext db) =>
+products.MapPut("/{id:int}", async (int id, Product input, CatalogDbContext db, ProductsCache pc) =>
 {
     var p = await db.Products.FindAsync(id);
     if (p is null) return Results.NotFound();
@@ -72,15 +72,17 @@ products.MapPut("/{id:int}", async (int id, Product input, CatalogDbContext db) 
     p.Description = input.Description;
     p.Price = input.Price;
     await db.SaveChangesAsync();
+    pc.Invalidate();                 
     return Results.NoContent();
 });
 
-products.MapDelete("/{id:int}", async (int id, CatalogDbContext db) =>
+products.MapDelete("/{id:int}", async (int id, CatalogDbContext db, ProductsCache pc) =>
 {
     var p = await db.Products.FindAsync(id);
     if (p is null) return Results.NotFound();
     db.Products.Remove(p);
     await db.SaveChangesAsync();
+    pc.Invalidate();                 
     return Results.NoContent();
 });
 

@@ -1,9 +1,11 @@
 @ApiService_HostAddress = http://localhost:5448
 
-GET {{ApiService_HostAddress}}/weatherforecast/
+GET {{ApiService_HostAddress}}/products
 Accept: application/json
 
-POST {{Shop.CatalogApi_HostAddress}}/products
+###
+
+POST {{ApiService_HostAddress}}/products
 Content-Type: application/json
 
 { "name": "Слушалки", "category": "Аксесоари", "price": 59.90 }
