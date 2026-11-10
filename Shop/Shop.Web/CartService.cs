@@ -21,7 +21,7 @@ public class CartService
         else line.Quantity++;
     }
 
-    public void Remove(int productId) => _lines.RemoveAll(l => l.Product.Id == productId);
+    public void Remove(string productId) => _lines.RemoveAll(l => l.Product.Id == productId);
 
     public void Clear() => _lines.Clear();
 }

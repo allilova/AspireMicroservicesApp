@@ -1,40 +1,45 @@
-using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Caching.Memory;
+using MongoDB.Bson;
+using MongoDB.Driver;
 using Shop.CatalogApi.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add service defaults & Aspire client integrations.
 builder.AddServiceDefaults();
 
-// Add services to the container.
 builder.Services.AddProblemDetails();
-
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
-builder.Services.AddDbContext<CatalogDbContext>(o => o.UseSqlite("Data Source=catalog.db"));
+
+// регистрира IMongoClient (с health check и телеметрия) от connection string "mongodb"
+builder.AddMongoDBClient("mongodb");
+builder.Services.AddSingleton(sp =>
+{
+    var client = sp.GetRequiredService<IMongoClient>();
+    var dbName = sp.GetRequiredService<IConfiguration>()["Mongo:Database"] ?? "catalogdb";
+    return client.GetDatabase(dbName).GetCollection<Product>("products");
+});
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<ProductsCache>();
+
 var app = builder.Build();
-// създава базата и добавя примерни продукти
-using (var scope = app.Services.CreateScope())
+
+// примерни продукти, ако колекцията е празна
+var collection = app.Services.GetRequiredService<IMongoCollection<Product>>();
+if (await collection.CountDocumentsAsync(FilterDefinition<Product>.Empty) == 0)
 {
-    var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
-    db.Database.EnsureCreated();
-    if (!db.Products.Any())
+    await collection.InsertManyAsync(new[]
     {
-        db.Products.AddRange(
-            new Product { Name = "Лаптоп 15\"", Category = "Компютри", Price = 1299.00m, Description = "Лаптоп за работа и учене" },
-            new Product { Name = "Безжична мишка", Category = "Аксесоари", Price = 29.90m },
-            new Product { Name = "Механична клавиатура", Category = "Аксесоари", Price = 89.00m },
-            new Product { Name = "Монитор 27\"", Category = "Компютри", Price = 349.00m });
-        db.SaveChanges();
-    }
+        new Product { Name = "Лаптоп 15\"", Category = "Компютри", Price = 1299.00m, Description = "Лаптоп за работа и учене" },
+        new Product { Name = "Безжична мишка", Category = "Аксесоари", Price = 29.90m },
+        new Product { Name = "Механична клавиатура", Category = "Аксесоари", Price = 89.00m },
+        new Product { Name = "Монитор 27\"", Category = "Компютри", Price = 349.00m }
+    });
 }
 
 var products = app.MapGroup("/products");
 
-products.MapGet("/", async (CatalogDbContext db, IMemoryCache cache, ProductsCache pc, string? search, string? category) =>
+products.MapGet("/", async (IMongoCollection<Product> col, IMemoryCache cache, ProductsCache pc, string? search, string? category) =>
 {
     var key = $"products:{search}:{category}";
     return await cache.GetOrCreateAsync(key, async entry =>
@@ -42,47 +47,47 @@ products.MapGet("/", async (CatalogDbContext db, IMemoryCache cache, ProductsCac
         entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
         entry.ExpirationTokens.Add(pc.GetToken());
 
-        var query = db.Products.AsQueryable();
+        var filter = Builders<Product>.Filter.Empty;
         if (!string.IsNullOrWhiteSpace(search))
-            query = query.Where(p => p.Name.Contains(search));
+            filter &= Builders<Product>.Filter.Regex(p => p.Name, new BsonRegularExpression(Regex.Escape(search), "i"));
         if (!string.IsNullOrWhiteSpace(category))
-            query = query.Where(p => p.Category == category);
-        return await query.OrderBy(p => p.Name).ToListAsync();
+            filter &= Builders<Product>.Filter.Eq(p => p.Category, category);
+
+        return await col.Find(filter).SortBy(p => p.Name).ToListAsync();
     });
 });
 
-products.MapGet("/{id:int}", async (int id, CatalogDbContext db) =>
-    await db.Products.FindAsync(id) is Product p ? Results.Ok(p) : Results.NotFound());
-
-products.MapPost("/", async (Product input, CatalogDbContext db, ProductsCache pc) =>
+products.MapGet("/{id}", async (string id, IMongoCollection<Product> col) =>
 {
-    input.Id = 0;
-    db.Products.Add(input);
-    await db.SaveChangesAsync();
+    if (!ObjectId.TryParse(id, out _)) return Results.NotFound();
+    var p = await col.Find(x => x.Id == id).FirstOrDefaultAsync();
+    return p is null ? Results.NotFound() : Results.Ok(p);
+});
+
+products.MapPost("/", async (Product input, IMongoCollection<Product> col, ProductsCache pc) =>
+{
+    input.Id = null;
+    await col.InsertOneAsync(input);
     pc.Invalidate();
     return Results.Created($"/products/{input.Id}", input);
 });
 
-products.MapPut("/{id:int}", async (int id, Product input, CatalogDbContext db, ProductsCache pc) =>
+products.MapPut("/{id}", async (string id, Product input, IMongoCollection<Product> col, ProductsCache pc) =>
 {
-    var p = await db.Products.FindAsync(id);
-    if (p is null) return Results.NotFound();
-    p.Name = input.Name;
-    p.Category = input.Category;
-    p.Description = input.Description;
-    p.Price = input.Price;
-    await db.SaveChangesAsync();
-    pc.Invalidate();                 
+    if (!ObjectId.TryParse(id, out _)) return Results.NotFound();
+    input.Id = id;
+    var result = await col.ReplaceOneAsync(p => p.Id == id, input);
+    if (result.MatchedCount == 0) return Results.NotFound();
+    pc.Invalidate();
     return Results.NoContent();
 });
 
-products.MapDelete("/{id:int}", async (int id, CatalogDbContext db, ProductsCache pc) =>
+products.MapDelete("/{id}", async (string id, IMongoCollection<Product> col, ProductsCache pc) =>
 {
-    var p = await db.Products.FindAsync(id);
-    if (p is null) return Results.NotFound();
-    db.Products.Remove(p);
-    await db.SaveChangesAsync();
-    pc.Invalidate();                 
+    if (!ObjectId.TryParse(id, out _)) return Results.NotFound();
+    var result = await col.DeleteOneAsync(p => p.Id == id);
+    if (result.DeletedCount == 0) return Results.NotFound();
+    pc.Invalidate();
     return Results.NoContent();
 });
 

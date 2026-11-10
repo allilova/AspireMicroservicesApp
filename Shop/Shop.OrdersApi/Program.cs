@@ -1,4 +1,5 @@
-using Microsoft.EntityFrameworkCore;
+using MongoDB.Bson;
+using MongoDB.Driver;
 using Shop.OrdersApi.Clients;
 using Shop.OrdersApi.Data;
 
@@ -7,15 +8,17 @@ builder.AddServiceDefaults();
 
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
-builder.Services.AddDbContext<OrdersDbContext>(o => o.UseSqlite("Data Source=orders.db"));
+
+builder.AddMongoDBClient("mongodb");
+builder.Services.AddSingleton(sp =>
+{
+    var client = sp.GetRequiredService<IMongoClient>();
+    var dbName = sp.GetRequiredService<IConfiguration>()["Mongo:Database"] ?? "ordersdb";
+    return client.GetDatabase(dbName).GetCollection<Order>("orders");
+});
 builder.Services.AddHttpClient<CatalogClient>(c => c.BaseAddress = new("https+http://catalog-api"));
 
 var app = builder.Build();
-
-using (var scope = app.Services.CreateScope())
-{
-    scope.ServiceProvider.GetRequiredService<OrdersDbContext>().Database.EnsureCreated();
-}
 
 app.UseExceptionHandler();
 
@@ -26,15 +29,17 @@ if (app.Environment.IsDevelopment())
 
 var orders = app.MapGroup("/orders");
 
-orders.MapGet("/", async (OrdersDbContext db) =>
-    await db.Orders.Include(o => o.Items).OrderByDescending(o => o.Id).ToListAsync());
+orders.MapGet("/", async (IMongoCollection<Order> col) =>
+    await col.Find(FilterDefinition<Order>.Empty).SortByDescending(o => o.CreatedAt).ToListAsync());
 
-orders.MapGet("/{id:int}", async (int id, OrdersDbContext db) =>
-    await db.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id) is Order o
-        ? Results.Ok(o)
-        : Results.NotFound());
+orders.MapGet("/{id}", async (string id, IMongoCollection<Order> col) =>
+{
+    if (!ObjectId.TryParse(id, out _)) return Results.NotFound();
+    var o = await col.Find(x => x.Id == id).FirstOrDefaultAsync();
+    return o is null ? Results.NotFound() : Results.Ok(o);
+});
 
-orders.MapPost("/", async (CreateOrderRequest request, OrdersDbContext db, CatalogClient catalog) =>
+orders.MapPost("/", async (CreateOrderRequest request, IMongoCollection<Order> col, CatalogClient catalog) =>
 {
     if (string.IsNullOrWhiteSpace(request.CustomerName))
         return Results.BadRequest("Името на клиента е задължително.");
@@ -71,23 +76,23 @@ orders.MapPost("/", async (CreateOrderRequest request, OrdersDbContext db, Catal
         });
     }
 
-    db.Orders.Add(order);
-    await db.SaveChangesAsync();
+    await col.InsertOneAsync(order);
     return Results.Created($"/orders/{order.Id}", order);
 });
 
-orders.MapPut("/{id:int}/status", async (int id, UpdateStatusRequest request, OrdersDbContext db) =>
+orders.MapPut("/{id}/status", async (string id, UpdateStatusRequest request, IMongoCollection<Order> col) =>
 {
     string[] allowed = ["New", "Confirmed", "Shipped", "Cancelled"];
     if (!allowed.Contains(request.Status))
         return Results.BadRequest($"Позволени статуси: {string.Join(", ", allowed)}");
 
-    var order = await db.Orders.FindAsync(id);
-    if (order is null) return Results.NotFound();
+    if (!ObjectId.TryParse(id, out _)) return Results.NotFound();
 
-    order.Status = request.Status;
-    await db.SaveChangesAsync();
-    return Results.NoContent();
+    var result = await col.UpdateOneAsync(
+        o => o.Id == id,
+        Builders<Order>.Update.Set(o => o.Status, request.Status));
+
+    return result.MatchedCount == 0 ? Results.NotFound() : Results.NoContent();
 });
 
 app.MapDefaultEndpoints();
@@ -95,5 +100,5 @@ app.MapDefaultEndpoints();
 app.Run();
 
 record CreateOrderRequest(string CustomerName, List<OrderLineRequest> Items);
-record OrderLineRequest(int ProductId, int Quantity);
+record OrderLineRequest(string ProductId, int Quantity);
 record UpdateStatusRequest(string Status);

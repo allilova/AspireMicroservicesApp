@@ -9,13 +9,13 @@ public class ShopIntegrationTests
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(90);
 
-    private record CatalogProduct(int Id, string Name, string Category, string? Description, decimal Price);
-    private record OrderLineResult(int ProductId, string ProductName, decimal UnitPrice, int Quantity);
-    private record OrderResult(int Id, string CustomerName, string Status, List<OrderLineResult> Items, decimal Total);
+    private record CatalogProduct(string Id, string Name, string Category, string? Description, decimal Price);
+    private record OrderLineResult(string ProductId, string ProductName, decimal UnitPrice, int Quantity);
+    private record OrderResult(string Id, string CustomerName, string Status, List<OrderLineResult> Items, decimal Total);
 
     private static async Task<DistributedApplication> StartAppAsync(CancellationToken ct)
     {
-        var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.Shop_AppHost>(ct);
+        var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.Shop_AppHost>(["--DbSuffix=_test"], ct);
         var app = await appHost.BuildAsync(ct).WaitAsync(Timeout, ct);
         await app.StartAsync(ct).WaitAsync(Timeout, ct);
         await app.ResourceNotifications.WaitForResourceHealthyAsync("catalog-api", ct).WaitAsync(Timeout, ct);
@@ -70,7 +70,7 @@ public class ShopIntegrationTests
         var response = await orders.PostAsJsonAsync("/orders", new
         {
             customerName = "Тест",
-            items = new[] { new { productId = 999999, quantity = 1 } }
+            items = new[] { new { productId = "000000000000000000000000", quantity = 1 } }
         }, cts.Token);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -86,7 +86,7 @@ public class ShopIntegrationTests
         var response = await orders.PostAsJsonAsync("/orders", new
         {
             customerName = "Тест",
-            items = new[] { new { productId = 1, quantity = 0 } }
+            items = new[] { new { productId = "000000000000000000000000", quantity = 0 } }
         }, cts.Token);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
