@@ -1,6 +1,20 @@
-@Shop.OrdersApi_HostAddress = http://localhost:5024
+@OrdersApi_HostAddress = http://localhost:5024
 
-GET {{Shop.OrdersApi_HostAddress}}/weatherforecast/
+POST {{OrdersApi_HostAddress}}/orders
+Content-Type: application/json
+
+{ "customerName": "Мария", "items": [ { "productId": 1, "quantity": 1 }, { "productId": 2, "quantity": 2 } ] }
+
+###
+
+GET {{OrdersApi_HostAddress}}/orders
 Accept: application/json
+
+###
+
+PUT {{OrdersApi_HostAddress}}/orders/1/status
+Content-Type: application/json
+
+{ "status": "Confirmed" }
 
 ###
