@@ -1,0 +1,63 @@
+﻿@page "/orders"
+@rendermode InteractiveServer
+@inject OrdersApiClient OrdersClient
+
+<PageTitle>Поръчки</PageTitle>
+
+<h1>Поръчки</h1>
+
+<button class="btn btn-outline-secondary mb-3" @onclick="LoadAsync">Обнови</button>
+
+@if (error is not null)
+{
+    <div class="alert alert-danger">@error</div>
+}
+else if (orders is null)
+{
+    <p><em>Зареждане...</em></p>
+}
+else if (orders.Count == 0)
+{
+    <p>Още няма поръчки.</p>
+}
+else
+{
+    @foreach (var o in orders)
+    {
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between">
+                <span>Поръчка №@o.Id · @o.CustomerName</span>
+                <span class="badge bg-secondary">@o.Status</span>
+            </div>
+            <ul class="list-group list-group-flush">
+                @foreach (var i in o.Items)
+                {
+                    <li class="list-group-item">@i.ProductName × @i.Quantity — @((i.UnitPrice * i.Quantity).ToString("N2")) €</li>
+                }
+            </ul>
+            <div class="card-footer">
+                Общо: @o.Total.ToString("N2") € · @o.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private List<OrderDto>? orders;
+    private string? error;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            error = null;
+            orders = await OrdersClient.GetOrdersAsync();
+        }
+        catch (HttpRequestException)
+        {
+            error = "Услугата за поръчки не е достъпна. Опитайте по-късно.";
+        }
+    }
+}

@@ -1,0 +1,102 @@
+﻿@page "/cart"
+@rendermode InteractiveServer
+@inject CartService CartState
+@inject OrdersApiClient OrdersClient
+
+<PageTitle>Количка</PageTitle>
+
+<h1>Количка</h1>
+
+@if (createdOrder is not null)
+{
+    <div class="alert alert-success">
+        Поръчка №@createdOrder.Id е приета. Общо: @createdOrder.Total.ToString("N2") €
+    </div>
+}
+
+@if (CartState.Lines.Count == 0)
+{
+    <p>Количката е празна. <a href="products">Към продуктите</a></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr><th>Продукт</th><th>Цена</th><th>Брой</th><th>Сума</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var line in CartState.Lines.ToList())
+            {
+                <tr>
+                    <td>@line.Product.Name</td>
+                    <td>@line.Product.Price.ToString("N2") €</td>
+                    <td>@line.Quantity</td>
+                    <td>@((line.Product.Price * line.Quantity).ToString("N2")) €</td>
+                    <td><button class="btn btn-sm btn-outline-danger" @onclick="() => CartState.Remove(line.Product.Id)">Премахни</button></td>
+                </tr>
+            }
+        </tbody>
+        <tfoot>
+            <tr><th colspan="3">Общо</th><th>@CartState.Total.ToString("N2") €</th><th></th></tr>
+        </tfoot>
+    </table>
+
+    <div class="row g-2 align-items-center">
+        <div class="col-md-5">
+            <input class="form-control" placeholder="Вашето име" @bind="customerName" />
+        </div>
+        <div class="col-md-3">
+            <button class="btn btn-success" @onclick="CheckoutAsync" disabled="@busy">Поръчай</button>
+        </div>
+    </div>
+}
+
+@if (error is not null)
+{
+    <div class="alert alert-danger mt-3">@error</div>
+}
+
+@code {
+    private string customerName = "";
+    private string? error;
+    private bool busy;
+    private OrderDto? createdOrder;
+
+    private async Task CheckoutAsync()
+    {
+        error = null;
+        createdOrder = null;
+
+        if (string.IsNullOrWhiteSpace(customerName))
+        {
+            error = "Въведете име.";
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            var request = new CreateOrderRequest(
+                customerName,
+                CartState.Lines.Select(l => new CreateOrderLine(l.Product.Id, l.Quantity)).ToList());
+
+            var (order, err) = await OrdersClient.CreateOrderAsync(request);
+            if (order is null)
+            {
+                error = err;
+                return;
+            }
+
+            createdOrder = order;
+            CartState.Clear();
+        }
+        catch (HttpRequestException)
+        {
+            error = "Услугата за поръчки не е достъпна. Опитайте по-късно.";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

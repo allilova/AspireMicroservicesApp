@@ -1,0 +1,98 @@
+﻿@page "/products"
+@rendermode InteractiveServer
+@inject CatalogApiClient Catalog
+@inject CartService Cart
+
+<PageTitle>Продукти</PageTitle>
+
+<h1>Продукти</h1>
+
+<div class="row g-2 mb-3">
+    <div class="col-md-4">
+        <input class="form-control" placeholder="Търсене по име..." @bind="search" />
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" @bind="category" @bind:after="LoadAsync">
+            <option value="">Всички категории</option>
+            @foreach (var c in categories)
+            {
+                <option value="@c">@c</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button class="btn btn-secondary" @onclick="LoadAsync">Търси</button>
+    </div>
+    <div class="col-md-3 text-end">
+        <a class="btn btn-outline-primary" href="cart">Количка (@Cart.Count)</a>
+    </div>
+</div>
+
+@if (error is not null)
+{
+    <div class="alert alert-danger">@error</div>
+}
+else if (products is null)
+{
+    <p><em>Зареждане...</em></p>
+}
+else if (products.Count == 0)
+{
+    <p>Няма намерени продукти.</p>
+}
+else
+{
+    <div class="row">
+        @foreach (var p in products)
+        {
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">@p.Name</h5>
+                        <h6 class="card-subtitle mb-2 text-muted">@p.Category</h6>
+                        <p class="card-text">@p.Description</p>
+                        <p class="fw-bold">@p.Price.ToString("N2") €</p>
+                    </div>
+                    <div class="card-footer">
+                        <button class="btn btn-primary" @onclick="() => Cart.Add(p)">Добави в количката</button>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<ProductDto>? products;
+    private List<string> categories = [];
+    private string search = "";
+    private string category = "";
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var all = await Catalog.GetProductsAsync();
+            categories = all.Select(p => p.Category).Distinct().OrderBy(c => c).ToList();
+            products = all;
+        }
+        catch (HttpRequestException)
+        {
+            error = "Каталогът не е достъпен. Опитайте по-късно.";
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            error = null;
+            products = await Catalog.GetProductsAsync(search, category);
+        }
+        catch (HttpRequestException)
+        {
+            error = "Каталогът не е достъпен. Опитайте по-късно.";
+        }
+    }
+}

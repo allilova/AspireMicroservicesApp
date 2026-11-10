@@ -12,12 +12,9 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddOutputCache();
 
-builder.Services.AddHttpClient<WeatherApiClient>(client =>
-    {
-        // This URL uses "https+http://" to indicate HTTPS is preferred over HTTP.
-        // Learn more about service discovery scheme resolution at https://aka.ms/dotnet/sdschemes.
-        client.BaseAddress = new("https+http://catalog-api");   
-    });
+builder.Services.AddHttpClient<CatalogApiClient>(c => c.BaseAddress = new("https+http://catalog-api"));
+builder.Services.AddHttpClient<OrdersApiClient>(c => c.BaseAddress = new("https+http://orders-api"));
+builder.Services.AddScoped<CartService>();
 
 var app = builder.Build();
 
