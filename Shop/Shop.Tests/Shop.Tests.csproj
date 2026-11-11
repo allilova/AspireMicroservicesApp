@@ -19,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Shop.AppHost\Shop.AppHost.csproj" />
     <ProjectReference Include="..\Shop.OrdersApi\Shop.OrdersApi.csproj" />
+    <ProjectReference Include="..\Shop.OrdersWorker\Shop.OrdersWorker.csproj" />
     <ProjectReference Include="..\Shop.Web\Shop.Web.csproj" />
   </ItemGroup>
 

@@ -259,4 +259,33 @@ public class ShopIntegrationTests
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         Assert.True(sw.Elapsed < TimeSpan.FromSeconds(5), $"Поръчката отне {sw.Elapsed.TotalSeconds:N1} сек.");
     }
+
+    [Fact]
+    public async Task Worker_confirms_new_order_automatically()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(150));
+        await using var app = await StartAppAsync(cts.Token);
+        using var catalog = app.CreateHttpClient("catalog-api");
+        using var orders = app.CreateHttpClient("orders-api");
+        var product = await CreateProductAsync(catalog, stock: 10, price: 5m, cts.Token);
+
+        var response = await orders.PostAsJsonAsync("/orders", new
+        {
+            customerName = "Тест",
+            items = new[] { new { productId = product.Id, quantity = 1 } }
+        }, cts.Token);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var order = await response.Content.ReadFromJsonAsync<OrderResult>(cts.Token);
+
+        // Worker потвърждава поръчката след около 15 до 20 секунди
+        var status = order!.Status;
+        for (var i = 0; i < 50 && status == "New"; i++)
+        {
+            await Task.Delay(1000, cts.Token);
+            var current = await orders.GetFromJsonAsync<OrderResult>($"/orders/{order.Id}", cts.Token);
+            status = current!.Status;
+        }
+
+        Assert.Equal("Confirmed", status);
+    }
 }
