@@ -59,13 +59,14 @@ public static class Extensions
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation()
                     // собствени метрики на услугите
-                    .AddMeter("Shop.Orders", "Shop.Catalog");
+                    .AddMeter("Shop.Orders", "Shop.Catalog", "Shop.Worker");
             })
             .WithTracing(tracing =>
             {
                 tracing.AddSource(builder.Environment.ApplicationName)
                     // собствени трасета на услугите
                     .AddSource("Shop.Orders")
+                    .AddSource("Shop.Worker")
                     .AddAspNetCoreInstrumentation(tracing =>
                         // Exclude health check requests from tracing
                         tracing.Filter = context =>

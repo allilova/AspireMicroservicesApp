@@ -34,4 +34,10 @@ builder.AddProject<Projects.Shop_Web>("webfrontend")
     .WithReference(notifications)
     .WaitFor(catalog);
 
+builder.AddProject<Projects.Shop_OrdersWorker>("shop-ordersworker");
+// фонов процес без HTTP адрес, затова няма health check
+builder.AddProject<Projects.Shop_OrdersWorker>("orders-worker")
+    .WithReference(orders)
+    .WaitFor(orders);
+
 builder.Build().Run();

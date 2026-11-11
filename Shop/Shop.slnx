@@ -3,6 +3,7 @@
   <Project Path="Shop.AppHost/Shop.AppHost.csproj" />
   <Project Path="Shop.NotificationsApi/Shop.NotificationsApi.csproj" />
   <Project Path="Shop.OrdersApi/Shop.OrdersApi.csproj" />
+  <Project Path="Shop.OrdersWorker/Shop.OrdersWorker.csproj" />
   <Project Path="Shop.ServiceDefaults/Shop.ServiceDefaults.csproj" />
   <Project Path="Shop.Tests/Shop.Tests.csproj" Id="408d0313-0ded-4415-b683-bdbe494d2dca" />
   <Project Path="Shop.Web/Shop.Web.csproj" />

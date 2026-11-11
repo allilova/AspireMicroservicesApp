@@ -35,8 +35,14 @@ if (app.Environment.IsDevelopment())
 
 var orders = app.MapGroup("/orders");
 
-orders.MapGet("/", async (IMongoCollection<Order> col) =>
-    await col.Find(FilterDefinition<Order>.Empty).SortByDescending(o => o.CreatedAt).ToListAsync());
+orders.MapGet("/", async (IMongoCollection<Order> col, string? status) =>
+{
+    var filter = string.IsNullOrWhiteSpace(status)
+        ? FilterDefinition<Order>.Empty
+        : Builders<Order>.Filter.Eq(o => o.Status, status);
+
+    return await col.Find(filter).SortByDescending(o => o.CreatedAt).ToListAsync();
+});
 
 orders.MapGet("/{id}", async (string id, IMongoCollection<Order> col) =>
 {
