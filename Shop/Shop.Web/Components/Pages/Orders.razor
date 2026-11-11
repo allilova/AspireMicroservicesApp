@@ -1,5 +1,6 @@
 ﻿@page "/orders"
 @inject OrdersApiClient OrdersClient
+@implements IDisposable
 
 <PageTitle>Поръчки</PageTitle>
 
@@ -37,6 +38,7 @@ else
                 </CardHeaderActions>
             </MudCardHeader>
             <MudCardContent>
+                <MudProgressLinear Value="@StatusProgress(o.Status)" Color="@StatusColor(o.Status)" Rounded="true" Class="mb-3" />
                 @foreach (var i in o.Items)
                 {
                     <div class="d-flex justify-space-between py-1">
@@ -78,7 +80,46 @@ else
         _ => Color.Default
     };
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private CancellationTokenSource? cts;
+
+private static double StatusProgress(string status) => status switch
+{
+    "New" => 33,
+    "Confirmed" => 66,
+    "Shipped" => 100,
+    "Cancelled" => 100,
+    _ => 0
+};
+
+protected override async Task OnInitializedAsync()
+{
+    await LoadAsync();
+    cts = new CancellationTokenSource();
+    _ = PollAsync(cts.Token);
+}
+
+private async Task PollAsync(CancellationToken ct)
+{
+    using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+    try
+    {
+        while (await timer.WaitForNextTickAsync(ct))
+        {
+            await LoadAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+    catch (OperationCanceledException)
+    {
+        // страницата е затворена
+    }
+}
+
+public void Dispose()
+{
+    cts?.Cancel();
+    cts?.Dispose();
+}
 
     private async Task LoadAsync()
     {
