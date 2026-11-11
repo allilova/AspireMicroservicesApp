@@ -6,3 +6,4 @@ public record OrderDto(string Id, string CustomerName, string Status, DateTime C
 public record ProductInput(string Name, string Category, string? Description, decimal Price, int Stock, string? ImageUrl);
 public record CreateOrderLine(string ProductId, int Quantity);
 public record CreateOrderRequest(string CustomerName, List<CreateOrderLine> Items);
+public record NotificationDto(string Id, string Type, string Message, string? OrderId, DateTime CreatedAt);

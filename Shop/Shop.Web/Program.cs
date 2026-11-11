@@ -15,8 +15,10 @@ builder.Services.AddOutputCache();
 
 builder.Services.AddHttpClient<CatalogApiClient>(c => c.BaseAddress = new("https+http://catalog-api"));
 builder.Services.AddHttpClient<OrdersApiClient>(c => c.BaseAddress = new("https+http://orders-api"));
+builder.Services.AddHttpClient<NotificationsApiClient>(c => c.BaseAddress = new("https+http://notifications-api"));
 builder.Services.AddScoped<CartService>();
 builder.Services.AddMudServices();
+
 
 var app = builder.Build();
 

@@ -2,6 +2,7 @@
 using System.Net.Http.Json;
 using Aspire.Hosting;
 using Aspire.Hosting.Testing;
+using System.Diagnostics;
 
 namespace Shop.Tests;
 
@@ -12,6 +13,7 @@ public class ShopIntegrationTests
     private record CatalogProduct(string Id, string Name, string Category, string? Description, decimal Price, int Stock);
     private record OrderLineResult(string ProductId, string ProductName, decimal UnitPrice, int Quantity);
     private record OrderResult(string Id, string CustomerName, string Status, List<OrderLineResult> Items, decimal Total);
+    private record NotificationResult(string Id, string Type, string Message, string? OrderId);
 
     private static async Task<DistributedApplication> StartAppAsync(CancellationToken ct)
     {
@@ -20,6 +22,7 @@ public class ShopIntegrationTests
         await app.StartAsync(ct).WaitAsync(Timeout, ct);
         await app.ResourceNotifications.WaitForResourceHealthyAsync("catalog-api", ct).WaitAsync(Timeout, ct);
         await app.ResourceNotifications.WaitForResourceHealthyAsync("orders-api", ct).WaitAsync(Timeout, ct);
+        await app.ResourceNotifications.WaitForResourceHealthyAsync("notifications-api", ct).WaitAsync(Timeout, ct);
         return app;
     }
 
@@ -191,5 +194,62 @@ public class ShopIntegrationTests
 
         var afterDelete = await catalog.GetFromJsonAsync<List<CatalogProduct>>("/products?category=Тест", cts.Token);
         Assert.DoesNotContain(afterDelete!, p => p.Id == product.Id);
+    }
+
+    [Fact]
+    public async Task Creating_order_sends_notification()
+    {
+        using var cts = new CancellationTokenSource(Timeout);
+        await using var app = await StartAppAsync(cts.Token);
+        using var catalog = app.CreateHttpClient("catalog-api");
+        using var orders = app.CreateHttpClient("orders-api");
+        using var notifications = app.CreateHttpClient("notifications-api");
+        var product = await CreateProductAsync(catalog, stock: 10, price: 5m, cts.Token);
+
+        var response = await orders.PostAsJsonAsync("/orders", new
+        {
+            customerName = "Тест",
+            items = new[] { new { productId = product.Id, quantity = 1 } }
+        }, cts.Token);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var order = await response.Content.ReadFromJsonAsync<OrderResult>(cts.Token);
+
+        // известието се изпраща асинхронно от фонов процес, затова изчакваме до 10 секунди
+        NotificationResult? found = null;
+        for (var i = 0; i < 20 && found is null; i++)
+        {
+            var list = await notifications.GetFromJsonAsync<List<NotificationResult>>("/notifications", cts.Token);
+            found = list!.FirstOrDefault(n => n.OrderId == order!.Id);
+            if (found is null) await Task.Delay(500, cts.Token);
+        }
+
+        Assert.NotNull(found);
+        Assert.Equal("OrderCreated", found.Type);
+    }
+
+    [Fact]
+    public async Task Order_succeeds_quickly_when_notifications_service_is_down()
+    {
+        using var cts = new CancellationTokenSource(Timeout);
+        await using var app = await StartAppAsync(cts.Token);
+        using var catalog = app.CreateHttpClient("catalog-api");
+        using var orders = app.CreateHttpClient("orders-api");
+        var product = await CreateProductAsync(catalog, stock: 10, price: 5m, cts.Token);
+
+        // спираме услугата за известия
+        await app.ResourceCommands.ExecuteCommandAsync("notifications-api", KnownResourceCommands.StopCommand, cts.Token);
+        await app.ResourceNotifications.WaitForResourceAsync("notifications-api", KnownResourceStates.Exited, cts.Token)
+            .WaitAsync(Timeout, cts.Token);
+
+        var sw = Stopwatch.StartNew();
+        var response = await orders.PostAsJsonAsync("/orders", new
+        {
+            customerName = "Тест",
+            items = new[] { new { productId = product.Id, quantity = 1 } }
+        }, cts.Token);
+        sw.Stop();
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(5), $"Поръчката отне {sw.Elapsed.TotalSeconds:N1} сек.");
     }
 }

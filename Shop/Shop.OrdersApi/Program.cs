@@ -2,6 +2,7 @@ using MongoDB.Bson;
 using MongoDB.Driver;
 using Shop.OrdersApi.Clients;
 using Shop.OrdersApi.Data;
+using Shop.OrdersApi.Notifications;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
@@ -17,6 +18,9 @@ builder.Services.AddSingleton(sp =>
     return client.GetDatabase(dbName).GetCollection<Order>("orders");
 });
 builder.Services.AddHttpClient<CatalogClient>(c => c.BaseAddress = new("https+http://catalog-api"));
+builder.Services.AddHttpClient("notifications", c => c.BaseAddress = new("https+http://notifications-api"));
+builder.Services.AddSingleton<NotificationQueue>();
+builder.Services.AddHostedService<NotificationSender>();
 
 var app = builder.Build();
 
@@ -39,8 +43,7 @@ orders.MapGet("/{id}", async (string id, IMongoCollection<Order> col) =>
     return o is null ? Results.NotFound() : Results.Ok(o);
 });
 
-orders.MapPost("/", async (CreateOrderRequest request, IMongoCollection<Order> col, CatalogClient catalog, ILogger<Program> logger) =>
-{
+orders.MapPost("/", async (CreateOrderRequest request, IMongoCollection<Order> col, CatalogClient catalog, NotificationQueue notifications, ILogger<Program> logger) => {
     if (string.IsNullOrWhiteSpace(request.CustomerName))
         return Results.BadRequest("Името на клиента е задължително.");
     if (request.Items is null || request.Items.Count == 0)
@@ -96,6 +99,10 @@ orders.MapPost("/", async (CreateOrderRequest request, IMongoCollection<Order> c
         }
 
         await col.InsertOneAsync(order);
+        notifications.TryEnqueue(new OrderNotification(
+    "OrderCreated",
+    $"Нова поръчка от {order.CustomerName} на стойност {order.Total:N2} €",
+    order.Id));
         return Results.Created($"/orders/{order.Id}", order);
     }
     catch (Exception ex)
@@ -107,7 +114,7 @@ orders.MapPost("/", async (CreateOrderRequest request, IMongoCollection<Order> c
     }
 });
 
-orders.MapPut("/{id}/status", async (string id, UpdateStatusRequest request, IMongoCollection<Order> col) =>
+orders.MapPut("/{id}/status", async (string id, UpdateStatusRequest request, IMongoCollection<Order> col, NotificationQueue notifications) =>
 {
     string[] allowed = ["New", "Confirmed", "Shipped", "Cancelled"];
     if (!allowed.Contains(request.Status))
@@ -119,7 +126,14 @@ orders.MapPut("/{id}/status", async (string id, UpdateStatusRequest request, IMo
         o => o.Id == id,
         Builders<Order>.Update.Set(o => o.Status, request.Status));
 
-    return result.MatchedCount == 0 ? Results.NotFound() : Results.NoContent();
+    if (result.MatchedCount == 0) return Results.NotFound();
+
+    notifications.TryEnqueue(new OrderNotification(
+        "OrderStatusChanged",
+        $"Поръчка #{id[^6..].ToUpperInvariant()} е със статус {request.Status}",
+        id));
+
+    return Results.NoContent();
 });
 
 app.MapDefaultEndpoints();

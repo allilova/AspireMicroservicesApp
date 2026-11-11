@@ -1,0 +1,103 @@
+﻿@page "/notifications"
+@implements IDisposable
+@inject NotificationsApiClient Client
+
+<PageTitle>Известия</PageTitle>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Известия</MudText>
+    <MudText Typo="Typo.caption" Class="mud-text-secondary">Обновява се автоматично на всеки 5 секунди</MudText>
+</MudStack>
+
+@if (error is not null)
+{
+    <MudAlert Severity="Severity.Warning">@error</MudAlert>
+}
+else if (items is null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (items.Count == 0)
+{
+    <MudText>Още няма известия.</MudText>
+}
+else
+{
+    @foreach (var n in items)
+    {
+        <MudPaper Class="d-flex align-center pa-3 mb-2" Elevation="1">
+            <MudAvatar Color="@ColorFor(n.Type)" Class="mr-3">
+                <MudIcon Icon="@IconFor(n.Type)" />
+            </MudAvatar>
+            <div class="flex-grow-1">
+                <MudText>@n.Message</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    @n.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")
+                </MudText>
+            </div>
+        </MudPaper>
+    }
+}
+
+@code {
+    private List<NotificationDto>? items;
+    private string? error;
+    private CancellationTokenSource? cts;
+
+    private static string IconFor(string type) => type switch
+    {
+        "OrderCreated" => Icons.Material.Filled.ReceiptLong,
+        "OrderStatusChanged" => Icons.Material.Filled.LocalShipping,
+        _ => Icons.Material.Filled.Info
+    };
+
+    private static Color ColorFor(string type) => type switch
+    {
+        "OrderCreated" => Color.Success,
+        "OrderStatusChanged" => Color.Info,
+        _ => Color.Default
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        cts = new CancellationTokenSource();
+        _ = PollAsync(cts.Token);
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            items = await Client.GetAsync();
+            error = null;
+        }
+        catch (HttpRequestException)
+        {
+            error = "Услугата за известия не е достъпна в момента. Останалата част от магазина работи нормално.";
+        }
+    }
+
+    private async Task PollAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                await LoadAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // страницата е затворена
+        }
+    }
+
+    public void Dispose()
+    {
+        cts?.Cancel();
+        cts?.Dispose();
+    }
+}
