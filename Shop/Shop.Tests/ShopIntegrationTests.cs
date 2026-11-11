@@ -166,4 +166,30 @@ public class ShopIntegrationTests
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Updating_and_deleting_product_is_reflected_in_list()
+    {
+        using var cts = new CancellationTokenSource(Timeout);
+        await using var app = await StartAppAsync(cts.Token);
+        using var catalog = app.CreateHttpClient("catalog-api");
+        var product = await CreateProductAsync(catalog, stock: 5, price: 10m, cts.Token);
+
+        // първо четене, за да попадне списъкът в кеша
+        var before = await catalog.GetFromJsonAsync<List<CatalogProduct>>("/products?category=Тест", cts.Token);
+        Assert.Contains(before!, p => p.Id == product.Id);
+
+        var update = await catalog.PutAsJsonAsync($"/products/{product.Id}",
+            new { name = "Променен", category = "Тест", price = 20m, stock = 5 }, cts.Token);
+        Assert.Equal(HttpStatusCode.NoContent, update.StatusCode);
+
+        var afterUpdate = await catalog.GetFromJsonAsync<List<CatalogProduct>>("/products?category=Тест", cts.Token);
+        Assert.Equal(20m, afterUpdate!.Single(p => p.Id == product.Id).Price);
+
+        var delete = await catalog.DeleteAsync($"/products/{product.Id}", cts.Token);
+        Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+
+        var afterDelete = await catalog.GetFromJsonAsync<List<CatalogProduct>>("/products?category=Тест", cts.Token);
+        Assert.DoesNotContain(afterDelete!, p => p.Id == product.Id);
+    }
 }

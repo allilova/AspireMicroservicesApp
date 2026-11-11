@@ -83,3 +83,49 @@ h1:focus {
     color: white;
     border-radius: 20px;
 }
+.cart-line {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.cart-thumb {
+    width: 72px;
+    height: 72px;
+    border-radius: 12px;
+    object-fit: cover;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.cart-info {
+    flex: 1 1 180px;
+    min-width: 0;
+}
+
+.qty {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--mud-palette-lines-inputs);
+    border-radius: 999px;
+    padding: 0 4px;
+}
+
+.qty-value {
+    min-width: 28px;
+    text-align: center;
+    font-weight: 500;
+}
+
+.cart-sum {
+    min-width: 96px;
+    text-align: right;
+}
+
+.summary-card {
+    position: sticky;
+    top: 88px;
+}

@@ -1,59 +1,115 @@
 ﻿@page "/cart"
-@rendermode InteractiveServer
 @inject CartService CartState
 @inject OrdersApiClient OrdersClient
+@inject ISnackbar Snackbar
 
 <PageTitle>Количка</PageTitle>
 
-<h1>Количка</h1>
+<div class="d-flex align-center mb-4">
+    <MudText Typo="Typo.h4">Количка</MudText>
+    @if (CartState.Count > 0 && createdOrder is null)
+    {
+        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="ml-3">@CartState.Count бр.</MudChip>
+    }
+</div>
 
 @if (createdOrder is not null)
 {
-    <div class="alert alert-success">
-        Поръчка №@createdOrder.Id е приета. Общо: @createdOrder.Total.ToString("N2") €
-    </div>
+    <MudPaper Class="pa-10 text-center">
+        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Style="font-size:5rem" />
+        <MudText Typo="Typo.h4" Class="mt-2">Благодарим за поръчката!</MudText>
+        <MudText Class="mud-text-secondary mt-1">
+            Поръчка #@ShortId(createdOrder.Id) · Общо @createdOrder.Total.ToString("N2") €
+        </MudText>
+        <div class="mt-6">
+            <MudButton Href="orders" Variant="Variant.Filled" Color="Color.Primary" Class="mr-2">Моите поръчки</MudButton>
+            <MudButton Href="products" Variant="Variant.Outlined">Продължи пазаруването</MudButton>
+        </div>
+    </MudPaper>
 }
-
-@if (CartState.Lines.Count == 0)
+else if (CartState.Lines.Count == 0)
 {
-    <p>Количката е празна. <a href="products">Към продуктите</a></p>
+    <MudPaper Class="pa-10 text-center">
+        <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Style="font-size:4rem" Class="mud-text-secondary" />
+        <MudText Typo="Typo.h6" Class="mt-2">Количката е празна</MudText>
+        <MudText Class="mud-text-secondary">Разгледай продуктите и добави нещо, което ти харесва.</MudText>
+        <MudButton Href="products" Variant="Variant.Filled" Color="Color.Primary" Class="mt-4">Към продуктите</MudButton>
+    </MudPaper>
 }
 else
 {
-    <table class="table">
-        <thead>
-            <tr><th>Продукт</th><th>Цена</th><th>Брой</th><th>Сума</th><th></th></tr>
-        </thead>
-        <tbody>
+    <MudGrid>
+        <MudItem xs="12" md="8">
             @foreach (var line in CartState.Lines.ToList())
             {
-                <tr>
-                    <td>@line.Product.Name</td>
-                    <td>@line.Product.Price.ToString("N2") €</td>
-                    <td>@line.Quantity</td>
-                    <td>@((line.Product.Price * line.Quantity).ToString("N2")) €</td>
-                    <td><button class="btn btn-sm btn-outline-danger" @onclick="() => CartState.Remove(line.Product.Id)">Премахни</button></td>
-                </tr>
-            }
-        </tbody>
-        <tfoot>
-            <tr><th colspan="3">Общо</th><th>@CartState.Total.ToString("N2") €</th><th></th></tr>
-        </tfoot>
-    </table>
+                <MudPaper Class="cart-line pa-3 mb-3" Elevation="1">
+                    @if (!string.IsNullOrWhiteSpace(line.Product.ImageUrl))
+                    {
+                        <img class="cart-thumb" src="@line.Product.ImageUrl" alt="@line.Product.Name" />
+                    }
+                    else
+                    {
+                        <div class="cart-thumb" style="background:@ProductVisuals.GradientFor(line.Product.Category)">
+                            <MudIcon Icon="@ProductVisuals.IconFor(line.Product.Category)" Style="color:white" />
+                        </div>
+                    }
 
-    <div class="row g-2 align-items-center">
-        <div class="col-md-5">
-            <input class="form-control" placeholder="Вашето име" @bind="customerName" />
-        </div>
-        <div class="col-md-3">
-            <button class="btn btn-success" @onclick="CheckoutAsync" disabled="@busy">Поръчай</button>
-        </div>
-    </div>
+                    <div class="cart-info">
+                        <MudText Typo="Typo.subtitle1">@line.Product.Name</MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                            @line.Product.Category · @line.Product.Price.ToString("N2") € за бр.
+                        </MudText>
+                    </div>
+
+                    <div class="qty">
+                        <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
+                                       OnClick="() => CartState.Decrease(line.Product.Id)" />
+                        <span class="qty-value">@line.Quantity</span>
+                        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                       OnClick="() => AddOne(line)" />
+                    </div>
+
+                    <MudText Typo="Typo.h6" Class="cart-sum">@((line.Product.Price * line.Quantity).ToString("N2")) €</MudText>
+
+                    <MudIconButton Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error"
+                                   OnClick="() => CartState.Remove(line.Product.Id)" />
+                </MudPaper>
+            }
+        </MudItem>
+
+        <MudItem xs="12" md="4">
+            <MudPaper Class="summary-card pa-5" Elevation="2">
+                <MudText Typo="Typo.h6" Class="mb-3">Обобщение</MudText>
+                <div class="d-flex justify-space-between mb-1">
+                    <MudText>Артикули</MudText>
+                    <MudText>@CartState.Count</MudText>
+                </div>
+                <MudDivider Class="my-3" />
+                <div class="d-flex justify-space-between align-center mb-4">
+                    <MudText Typo="Typo.h6">Общо</MudText>
+                    <MudText Typo="Typo.h5" Color="Color.Primary">@CartState.Total.ToString("N2") €</MudText>
+                </div>
+
+                <MudTextField @bind-Value="customerName" Label="Вашето име" Variant="Variant.Outlined" Class="mb-4"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Person" />
+
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" FullWidth="true"
+                           Disabled="busy" OnClick="CheckoutAsync">
+                    @if (busy)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    Поръчай
+                </MudButton>
+                <MudButton Href="products" Variant="Variant.Text" FullWidth="true" Class="mt-2">Продължи пазаруването</MudButton>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
 }
 
 @if (error is not null)
 {
-    <div class="alert alert-danger mt-3">@error</div>
+    <MudAlert Severity="Severity.Error" Class="mt-4">@error</MudAlert>
 }
 
 @code {
@@ -61,6 +117,14 @@ else
     private string? error;
     private bool busy;
     private OrderDto? createdOrder;
+
+    private static string ShortId(string id) => id.Length > 6 ? id[^6..].ToUpperInvariant() : id;
+
+    private void AddOne(CartLine line)
+    {
+        if (!CartState.Add(line.Product))
+            Snackbar.Add("Достигнахте наличното количество", Severity.Warning);
+    }
 
     private async Task CheckoutAsync()
     {

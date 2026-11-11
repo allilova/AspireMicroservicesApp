@@ -1,0 +1,219 @@
+﻿@page "/admin/products"
+@inject CatalogApiClient Catalog
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
+
+<PageTitle>Администрация</PageTitle>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Управление на продукти</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="NewProduct">
+        Нов продукт
+    </MudButton>
+</MudStack>
+
+@if (form is not null)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudText Typo="Typo.h6" Class="mb-3">@(form.Id is null ? "Нов продукт" : "Редакция на продукт")</MudText>
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <MudTextField @bind-Value="form.Name" Label="Име" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudTextField @bind-Value="form.Category" Label="Категория" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="form.Description" Label="Описание" Variant="Variant.Outlined" Lines="2" />
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudNumericField T="decimal" @bind-Value="form.Price" Label="Цена (€)" Variant="Variant.Outlined" Min="0" />
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudNumericField T="int" @bind-Value="form.Stock" Label="Наличност" Variant="Variant.Outlined" Min="0" />
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudTextField @bind-Value="form.ImageUrl" Label="Адрес на снимка (по желание)" Variant="Variant.Outlined" />
+            </MudItem>
+        </MudGrid>
+
+        @if (formError is not null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">@formError</MudAlert>
+        }
+
+        <div class="mt-4 d-flex gap-2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="saving">Запази</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="CancelForm">Отказ</MudButton>
+        </div>
+    </MudPaper>
+}
+
+@if (error is not null)
+{
+    <MudAlert Severity="Severity.Error">@error</MudAlert>
+}
+else if (products is null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudPaper Class="pa-2">
+        <MudTable Items="products" Hover="true" Elevation="0">
+            <HeaderContent>
+                <MudTh>Име</MudTh>
+                <MudTh>Категория</MudTh>
+                <MudTh>Цена</MudTh>
+                <MudTh>Наличност</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Име">@context.Name</MudTd>
+                <MudTd DataLabel="Категория">@context.Category</MudTd>
+                <MudTd DataLabel="Цена">@context.Price.ToString("N2") €</MudTd>
+                <MudTd DataLabel="Наличност">
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Text"
+                             Color="@(context.Stock <= 0 ? Color.Error : context.Stock <= 5 ? Color.Warning : Color.Success)">
+                        @context.Stock
+                    </MudChip>
+                </MudTd>
+                <MudTd Style="text-align:right">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => EditProduct(context)" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                   OnClick="() => DeleteAsync(context)" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+}
+
+@code {
+    private class ProductForm
+    {
+        public string? Id { get; set; }
+        public string Name { get; set; } = "";
+        public string Category { get; set; } = "";
+        public string? Description { get; set; }
+        public decimal Price { get; set; }
+        public int Stock { get; set; }
+        public string? ImageUrl { get; set; }
+    }
+
+    private List<ProductDto>? products;
+    private ProductForm? form;
+    private string? formError;
+    private string? error;
+    private bool saving;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            error = null;
+            products = await Catalog.GetProductsAsync();
+        }
+        catch (HttpRequestException)
+        {
+            error = "Каталогът не е достъпен. Опитайте по-късно.";
+        }
+    }
+
+    private void NewProduct()
+    {
+        formError = null;
+        form = new ProductForm();
+    }
+
+    private void EditProduct(ProductDto p)
+    {
+        formError = null;
+        form = new ProductForm
+        {
+            Id = p.Id,
+            Name = p.Name,
+            Category = p.Category,
+            Description = p.Description,
+            Price = p.Price,
+            Stock = p.Stock,
+            ImageUrl = p.ImageUrl
+        };
+    }
+
+    private void CancelForm() => form = null;
+
+    private async Task SaveAsync()
+    {
+        if (form is null) return;
+        formError = null;
+
+        if (string.IsNullOrWhiteSpace(form.Name) || string.IsNullOrWhiteSpace(form.Category))
+        {
+            formError = "Името и категорията са задължителни.";
+            return;
+        }
+        if (form.Price <= 0)
+        {
+            formError = "Цената трябва да е по-голяма от 0.";
+            return;
+        }
+        if (form.Stock < 0)
+        {
+            formError = "Наличността не може да е отрицателна.";
+            return;
+        }
+
+        var input = new ProductInput(
+            form.Name.Trim(),
+            form.Category.Trim(),
+            string.IsNullOrWhiteSpace(form.Description) ? null : form.Description.Trim(),
+            form.Price,
+            form.Stock,
+            string.IsNullOrWhiteSpace(form.ImageUrl) ? null : form.ImageUrl.Trim());
+
+        saving = true;
+        try
+        {
+            if (form.Id is null)
+                await Catalog.CreateProductAsync(input);
+            else
+                await Catalog.UpdateProductAsync(form.Id, input);
+
+            Snackbar.Add("Продуктът е запазен", Severity.Success);
+            form = null;
+            await LoadAsync();
+        }
+        catch (HttpRequestException)
+        {
+            formError = "Каталогът не е достъпен. Опитайте по-късно.";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task DeleteAsync(ProductDto p)
+    {
+        var confirmed = await Dialogs.ShowMessageBoxAsync(
+            "Изтриване на продукт",
+            $"Да изтрия ли „{p.Name}“?",
+            yesText: "Изтрий",
+            cancelText: "Отказ");
+
+        if (confirmed != true) return;
+
+        try
+        {
+            await Catalog.DeleteProductAsync(p.Id);
+            Snackbar.Add("Продуктът е изтрит", Severity.Success);
+            await LoadAsync();
+        }
+        catch (HttpRequestException)
+        {
+            Snackbar.Add("Каталогът не е достъпен. Опитайте по-късно.", Severity.Error);
+        }
+    }
+}

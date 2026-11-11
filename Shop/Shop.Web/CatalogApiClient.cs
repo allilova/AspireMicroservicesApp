@@ -11,4 +11,22 @@ public class CatalogApiClient(HttpClient http)
         var url = parts.Count > 0 ? "/products?" + string.Join("&", parts) : "/products";
         return await http.GetFromJsonAsync<List<ProductDto>>(url, ct) ?? [];
     }
+    public async Task<ProductDto?> CreateProductAsync(ProductInput input, CancellationToken ct = default)
+    {
+        var response = await http.PostAsJsonAsync("/products", input, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ProductDto>(ct);
+    }
+
+    public async Task UpdateProductAsync(string id, ProductInput input, CancellationToken ct = default)
+    {
+        var response = await http.PutAsJsonAsync($"/products/{Uri.EscapeDataString(id)}", input, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteProductAsync(string id, CancellationToken ct = default)
+    {
+        var response = await http.DeleteAsync($"/products/{Uri.EscapeDataString(id)}", ct);
+        response.EnsureSuccessStatusCode();
+    }
 }

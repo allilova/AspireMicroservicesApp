@@ -60,8 +60,8 @@ else
                     }
                     else
                     {
-                        <div class="product-hero" style="background:@GradientFor(p.Category)">
-                            <MudIcon Icon="@IconFor(p.Category)" Style="font-size:4rem;color:white;opacity:.9" />
+                        <div class="product-hero" style="background:@ProductVisuals.GradientFor(p.Category)">
+                            <MudIcon Icon="@ProductVisuals.IconFor(p.Category)" Style="font-size:4rem;color:white;opacity:.9" />
                         </div>
                     }
                     <MudCardContent>
@@ -98,14 +98,7 @@ else
 }
 
 @code {
-    private static readonly string[] Gradients =
-    [
-        "linear-gradient(135deg,#667eea,#764ba2)",
-        "linear-gradient(135deg,#11998e,#38ef7d)",
-        "linear-gradient(135deg,#f7971e,#ffd200)",
-        "linear-gradient(135deg,#ee0979,#ff6a00)",
-        "linear-gradient(135deg,#2193b0,#6dd5ed)"
-    ];
+   
 
     private List<ProductDto>? products;
     private List<string> categories = [];
@@ -113,14 +106,9 @@ else
     private string category = "";
     private string? error;
 
-    private static string GradientFor(string cat) => Gradients[cat.Sum(ch => ch) % Gradients.Length];
+    
 
-    private static string IconFor(string cat) => cat switch
-    {
-        "Компютри" => Icons.Material.Filled.Computer,
-        "Аксесоари" => Icons.Material.Filled.Headphones,
-        _ => Icons.Material.Filled.Inventory2
-    };
+    
 
     protected override async Task OnInitializedAsync()
     {
