@@ -14,6 +14,7 @@ namespace Shop.CatalogApi.Data
         public string? Description { get; set; }
 
         [BsonRepresentation(BsonType.Decimal128)]
+        public int Stock { get; set; }
         public decimal Price { get; set; }
     }
 }

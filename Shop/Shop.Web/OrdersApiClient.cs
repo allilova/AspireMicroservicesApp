@@ -15,9 +15,17 @@ public class OrdersApiClient(HttpClient http)
             return (await response.Content.ReadFromJsonAsync<OrderDto>(ct), null);
 
         if (response.StatusCode == HttpStatusCode.ServiceUnavailable)
-            return (null, "Каталогът не е достъпен. Опитайте по-късно.");
+            return (null, "Услугата е временно недостъпна. Опитайте по-късно.");
 
-        var text = await response.Content.ReadAsStringAsync(ct);
-        return (null, text.Trim('"'));
+        string? message;
+        try
+        {
+            message = await response.Content.ReadFromJsonAsync<string>(ct);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            message = await response.Content.ReadAsStringAsync(ct);
+        }
+        return (null, message ?? "Грешка при създаване на поръчката.");
     }
 }

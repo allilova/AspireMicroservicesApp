@@ -30,12 +30,17 @@ if (await collection.CountDocumentsAsync(FilterDefinition<Product>.Empty) == 0)
 {
     await collection.InsertManyAsync(new[]
     {
-        new Product { Name = "Лаптоп 15\"", Category = "Компютри", Price = 1299.00m, Description = "Лаптоп за работа и учене" },
-        new Product { Name = "Безжична мишка", Category = "Аксесоари", Price = 29.90m },
-        new Product { Name = "Механична клавиатура", Category = "Аксесоари", Price = 89.00m },
-        new Product { Name = "Монитор 27\"", Category = "Компютри", Price = 349.00m }
+        new Product { Name = "Лаптоп 15\"", Category = "Компютри", Price = 1299.00m, Stock = 5, Description = "Лаптоп за работа и учене" },
+        new Product { Name = "Безжична мишка", Category = "Аксесоари", Price = 29.90m, Stock = 25 },
+        new Product { Name = "Механична клавиатура", Category = "Аксесоари", Price = 89.00m, Stock = 12 },
+        new Product { Name = "Монитор 27\"", Category = "Компютри", Price = 349.00m, Stock = 8 }
     });
 }
+
+
+await collection.UpdateManyAsync(
+    Builders<Product>.Filter.Exists(p => p.Stock, false),
+    Builders<Product>.Update.Set(p => p.Stock, 10));
 
 var products = app.MapGroup("/products");
 
@@ -91,6 +96,42 @@ products.MapDelete("/{id}", async (string id, IMongoCollection<Product> col, Pro
     return Results.NoContent();
 });
 
+// резервира количество: намалява наличността само ако има достатъчно (атомарно)
+products.MapPost("/{id}/reserve", async (string id, StockChangeRequest request, IMongoCollection<Product> col, ProductsCache pc) =>
+{
+    if (request.Quantity <= 0) return Results.BadRequest("Количеството трябва да е поне 1.");
+    if (!ObjectId.TryParse(id, out _)) return Results.NotFound();
+
+    var qty = request.Quantity;
+    var updated = await col.FindOneAndUpdateAsync(
+        Builders<Product>.Filter.Where(p => p.Id == id && p.Stock >= qty),
+        Builders<Product>.Update.Inc(p => p.Stock, -qty),
+        new FindOneAndUpdateOptions<Product> { ReturnDocument = ReturnDocument.After });
+
+    if (updated is null)
+    {
+        // или няма такъв продукт, или наличността не стига
+        var existing = await col.Find(p => p.Id == id).FirstOrDefaultAsync();
+        return existing is null ? Results.NotFound() : Results.Conflict(existing);
+    }
+
+    pc.Invalidate();
+    return Results.Ok(updated);
+});
+
+// връща количество (компенсиращо действие)
+products.MapPost("/{id}/release", async (string id, StockChangeRequest request, IMongoCollection<Product> col, ProductsCache pc) =>
+{
+    if (request.Quantity <= 0) return Results.BadRequest("Количеството трябва да е поне 1.");
+    if (!ObjectId.TryParse(id, out _)) return Results.NotFound();
+
+    var result = await col.UpdateOneAsync(p => p.Id == id, Builders<Product>.Update.Inc(p => p.Stock, request.Quantity));
+    if (result.MatchedCount == 0) return Results.NotFound();
+
+    pc.Invalidate();
+    return Results.NoContent();
+});
+
 // Configure the HTTP request pipeline.
 app.UseExceptionHandler();
 
@@ -125,3 +166,4 @@ record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {
     public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
 }
+record StockChangeRequest(int Quantity);

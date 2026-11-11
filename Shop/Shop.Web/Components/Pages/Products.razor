@@ -52,9 +52,12 @@ else
                         <h6 class="card-subtitle mb-2 text-muted">@p.Category</h6>
                         <p class="card-text">@p.Description</p>
                         <p class="fw-bold">@p.Price.ToString("N2") €</p>
+                        <p class="@(p.Stock > 0 ? "text-success" : "text-danger")">
+                            @(p.Stock > 0 ? $"Налични: {p.Stock}" : "Изчерпан")
+                        </p>
                     </div>
                     <div class="card-footer">
-                        <button class="btn btn-primary" @onclick="() => Cart.Add(p)">Добави в количката</button>
+                        <button class="btn btn-primary" disabled="@(p.Stock <= 0)" @onclick="() => Cart.Add(p)">Добави в количката</button>
                     </div>
                 </div>
             </div>

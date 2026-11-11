@@ -5,7 +5,7 @@ namespace Shop.Tests;
 public class CartServiceTests
 {
     private static ProductDto Product(int id, decimal price) =>
-      new(id.ToString(), $"Продукт {id}", "Тест", null, price);
+    new(id.ToString(), $"Продукт {id}", "Тест", null, price, 100);
 
     [Fact]
     public void Adding_same_product_twice_increases_quantity()
