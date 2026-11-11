@@ -1,50 +1,82 @@
 ﻿@page "/orders"
-@rendermode InteractiveServer
 @inject OrdersApiClient OrdersClient
 
 <PageTitle>Поръчки</PageTitle>
 
-<h1>Поръчки</h1>
-
-<button class="btn btn-outline-secondary mb-3" @onclick="LoadAsync">Обнови</button>
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Поръчки</MudText>
+    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">Обнови</MudButton>
+</MudStack>
 
 @if (error is not null)
 {
-    <div class="alert alert-danger">@error</div>
+    <MudAlert Severity="Severity.Error">@error</MudAlert>
 }
 else if (orders is null)
 {
-    <p><em>Зареждане...</em></p>
+    <MudProgressLinear Indeterminate="true" />
 }
 else if (orders.Count == 0)
 {
-    <p>Още няма поръчки.</p>
+    <MudText>Още няма поръчки.</MudText>
 }
 else
 {
     @foreach (var o in orders)
     {
-        <div class="card mb-3">
-            <div class="card-header d-flex justify-content-between">
-                <span>Поръчка №@o.Id · @o.CustomerName</span>
-                <span class="badge bg-secondary">@o.Status</span>
-            </div>
-            <ul class="list-group list-group-flush">
+        <MudCard Class="mb-4">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Поръчка #@ShortId(o.Id)</MudText>
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                        @o.CustomerName · @o.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                    </MudText>
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    <MudChip T="string" Size="Size.Small" Color="@StatusColor(o.Status)">@StatusText(o.Status)</MudChip>
+                </CardHeaderActions>
+            </MudCardHeader>
+            <MudCardContent>
                 @foreach (var i in o.Items)
                 {
-                    <li class="list-group-item">@i.ProductName × @i.Quantity — @((i.UnitPrice * i.Quantity).ToString("N2")) €</li>
+                    <div class="d-flex justify-space-between py-1">
+                        <span>@i.ProductName × @i.Quantity</span>
+                        <span>@((i.UnitPrice * i.Quantity).ToString("N2")) €</span>
+                    </div>
                 }
-            </ul>
-            <div class="card-footer">
-                Общо: @o.Total.ToString("N2") € · @o.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
-            </div>
-        </div>
+                <MudDivider Class="my-2" />
+                <div class="d-flex justify-space-between">
+                    <b>Общо</b>
+                    <b>@o.Total.ToString("N2") €</b>
+                </div>
+            </MudCardContent>
+        </MudCard>
     }
 }
 
 @code {
     private List<OrderDto>? orders;
     private string? error;
+
+    private static string ShortId(string id) => id.Length > 6 ? id[^6..].ToUpperInvariant() : id;
+
+    private static string StatusText(string status) => status switch
+    {
+        "New" => "Нова",
+        "Confirmed" => "Потвърдена",
+        "Shipped" => "Изпратена",
+        "Cancelled" => "Отказана",
+        _ => status
+    };
+
+    private static Color StatusColor(string status) => status switch
+    {
+        "New" => Color.Info,
+        "Confirmed" => Color.Primary,
+        "Shipped" => Color.Success,
+        "Cancelled" => Color.Error,
+        _ => Color.Default
+    };
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 

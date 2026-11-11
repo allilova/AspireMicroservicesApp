@@ -2,7 +2,32 @@
 
 <PageTitle>Начало</PageTitle>
 
-<h1>Онлайн магазин</h1>
+<MudPaper Class="hero pa-10" Elevation="0">
+    <MudText Typo="Typo.h3" Class="mb-2">Онлайн магазин</MudText>
+    <MudText Typo="Typo.h6" Class="mb-6">Микроуслуги с .NET Aspire и MongoDB</MudText>
+    <MudButton Href="products" Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Large"
+               StartIcon="@Icons.Material.Filled.Storefront">
+        Разгледай продуктите
+    </MudButton>
+</MudPaper>
 
-<p>Учебен проект с микроуслуги и .NET Aspire.</p>
-<p><a class="btn btn-primary" href="products">Разгледай продуктите</a></p>
+<MudGrid Class="mt-6">
+    <MudItem xs="12" md="4">
+        <MudPaper Class="pa-4" Style="height:100%">
+            <MudText Typo="Typo.h6">Каталог</MudText>
+            <MudText Class="mud-text-secondary">Продукти и наличности в собствена MongoDB база.</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" md="4">
+        <MudPaper Class="pa-4" Style="height:100%">
+            <MudText Typo="Typo.h6">Поръчки</MudText>
+            <MudText Class="mud-text-secondary">Резервиране на наличност с компенсиращо действие при грешка.</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" md="4">
+        <MudPaper Class="pa-4" Style="height:100%">
+            <MudText Typo="Typo.h6">Наблюдаемост</MudText>
+            <MudText Class="mud-text-secondary">Логове, метрики и трасета в Aspire dashboard.</MudText>
+        </MudPaper>
+    </MudItem>
+</MudGrid>

@@ -1,76 +1,126 @@
 ﻿@page "/products"
-@rendermode InteractiveServer
 @inject CatalogApiClient Catalog
 @inject CartService Cart
+@inject ISnackbar Snackbar
 
 <PageTitle>Продукти</PageTitle>
 
-<h1>Продукти</h1>
+<MudText Typo="Typo.h4" Class="mb-4">Продукти</MudText>
 
-<div class="row g-2 mb-3">
-    <div class="col-md-4">
-        <input class="form-control" placeholder="Търсене по име..." @bind="search" />
-    </div>
-    <div class="col-md-3">
-        <select class="form-select" @bind="category" @bind:after="LoadAsync">
-            <option value="">Всички категории</option>
-            @foreach (var c in categories)
-            {
-                <option value="@c">@c</option>
-            }
-        </select>
-    </div>
-    <div class="col-md-2">
-        <button class="btn btn-secondary" @onclick="LoadAsync">Търси</button>
-    </div>
-    <div class="col-md-3 text-end">
-        <a class="btn btn-outline-primary" href="cart">Количка (@Cart.Count)</a>
-    </div>
-</div>
+<MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-4">
+    <MudTextField @bind-Value="search" Label="Търсене по име" Variant="Variant.Outlined" Margin="Margin.Dense"
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                  Immediate="true" DebounceInterval="400" OnDebounceIntervalElapsed="LoadAsync"
+                  Style="max-width:320px" />
+
+    <MudChip T="string" Color="Color.Primary"
+             Variant="@(category == "" ? Variant.Filled : Variant.Outlined)"
+             OnClick="@(() => SelectCategoryAsync(string.Empty))">Всички</MudChip>
+    @foreach (var c in categories)
+    {
+        var current = c;
+        <MudChip T="string" Color="Color.Primary"
+                 Variant="@(category == current ? Variant.Filled : Variant.Outlined)"
+                 OnClick="@(() => SelectCategoryAsync(current))">@current</MudChip>
+    }
+</MudStack>
 
 @if (error is not null)
 {
-    <div class="alert alert-danger">@error</div>
+    <MudAlert Severity="Severity.Error" Class="mb-4">
+        @error
+        <MudButton Size="Size.Small" OnClick="RetryAsync" Class="ml-4">Опитай пак</MudButton>
+    </MudAlert>
 }
 else if (products is null)
 {
-    <p><em>Зареждане...</em></p>
+    <MudGrid>
+        @for (var i = 0; i < 4; i++)
+        {
+            <MudItem xs="12" sm="6" md="4" lg="3">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="320px" Animation="Animation.Wave" />
+            </MudItem>
+        }
+    </MudGrid>
 }
 else if (products.Count == 0)
 {
-    <p>Няма намерени продукти.</p>
+    <MudText>Няма намерени продукти.</MudText>
 }
 else
 {
-    <div class="row">
+    <MudGrid>
         @foreach (var p in products)
         {
-            <div class="col-md-4 mb-3">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <h5 class="card-title">@p.Name</h5>
-                        <h6 class="card-subtitle mb-2 text-muted">@p.Category</h6>
-                        <p class="card-text">@p.Description</p>
-                        <p class="fw-bold">@p.Price.ToString("N2") €</p>
-                        <p class="@(p.Stock > 0 ? "text-success" : "text-danger")">
-                            @(p.Stock > 0 ? $"Налични: {p.Stock}" : "Изчерпан")
-                        </p>
-                    </div>
-                    <div class="card-footer">
-                        <button class="btn btn-primary" disabled="@(p.Stock <= 0)" @onclick="() => Cart.Add(p)">Добави в количката</button>
-                    </div>
-                </div>
-            </div>
+            <MudItem xs="12" sm="6" md="4" lg="3" Class="d-flex">
+                <MudCard Class="product-card">
+                    @if (!string.IsNullOrWhiteSpace(p.ImageUrl))
+                    {
+                        <MudCardMedia Image="@p.ImageUrl" Height="160" />
+                    }
+                    else
+                    {
+                        <div class="product-hero" style="background:@GradientFor(p.Category)">
+                            <MudIcon Icon="@IconFor(p.Category)" Style="font-size:4rem;color:white;opacity:.9" />
+                        </div>
+                    }
+                    <MudCardContent>
+                        <MudText Typo="Typo.overline" Color="Color.Primary">@p.Category</MudText>
+                        <MudText Typo="Typo.h6">@p.Name</MudText>
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary">@p.Description</MudText>
+                    </MudCardContent>
+                    <MudCardActions Class="px-4 pb-4 d-flex justify-space-between align-center">
+                        <div>
+                            <MudText Typo="Typo.h6">@p.Price.ToString("N2") €</MudText>
+                            @if (p.Stock <= 0)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Text">Изчерпан</MudChip>
+                            }
+                            else if (p.Stock <= 5)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Text">Остават @p.Stock</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Text">Налични: @p.Stock</MudChip>
+                            }
+                        </div>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.AddShoppingCart"
+                                   Disabled="@(p.Stock <= 0)" OnClick="@(() => AddToCart(p))">
+                            Добави
+                        </MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
         }
-    </div>
+    </MudGrid>
 }
 
 @code {
+    private static readonly string[] Gradients =
+    [
+        "linear-gradient(135deg,#667eea,#764ba2)",
+        "linear-gradient(135deg,#11998e,#38ef7d)",
+        "linear-gradient(135deg,#f7971e,#ffd200)",
+        "linear-gradient(135deg,#ee0979,#ff6a00)",
+        "linear-gradient(135deg,#2193b0,#6dd5ed)"
+    ];
+
     private List<ProductDto>? products;
     private List<string> categories = [];
     private string search = "";
     private string category = "";
     private string? error;
+
+    private static string GradientFor(string cat) => Gradients[cat.Sum(ch => ch) % Gradients.Length];
+
+    private static string IconFor(string cat) => cat switch
+    {
+        "Компютри" => Icons.Material.Filled.Computer,
+        "Аксесоари" => Icons.Material.Filled.Headphones,
+        _ => Icons.Material.Filled.Inventory2
+    };
 
     protected override async Task OnInitializedAsync()
     {
@@ -86,6 +136,12 @@ else
         }
     }
 
+    private async Task RetryAsync()
+    {
+        error = null;
+        await OnInitializedAsync();
+    }
+
     private async Task LoadAsync()
     {
         try
@@ -97,5 +153,19 @@ else
         {
             error = "Каталогът не е достъпен. Опитайте по-късно.";
         }
+    }
+
+    private async Task SelectCategoryAsync(string c)
+    {
+        category = c;
+        await LoadAsync();
+    }
+
+    private void AddToCart(ProductDto p)
+    {
+        if (Cart.Add(p))
+            Snackbar.Add($"„{p.Name}“ е добавен в количката", Severity.Success);
+        else
+            Snackbar.Add("Достигнахте наличното количество", Severity.Warning);
     }
 }
