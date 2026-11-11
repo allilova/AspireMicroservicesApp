@@ -237,8 +237,15 @@ public class ShopIntegrationTests
         var product = await CreateProductAsync(catalog, stock: 10, price: 5m, cts.Token);
 
         // спираме услугата за известия
-        await app.ResourceCommands.ExecuteCommandAsync("notifications-api", KnownResourceCommands.StopCommand, cts.Token);
-        await app.ResourceNotifications.WaitForResourceAsync("notifications-api", KnownResourceStates.Exited, cts.Token)
+        // спираме услугата за известия и чакаме да спре (състоянието може да е Exited или Finished)
+        var stop = await app.ResourceCommands.ExecuteCommandAsync(
+            "notifications-api", KnownResourceCommands.StopCommand, cts.Token);
+        Assert.True(stop.Success);
+
+        await app.ResourceNotifications.WaitForResourceAsync(
+                "notifications-api",
+                e => e.Snapshot.State?.Text is "Exited" or "Finished" or "FailedToStart",
+                cts.Token)
             .WaitAsync(Timeout, cts.Token);
 
         var sw = Stopwatch.StartNew();

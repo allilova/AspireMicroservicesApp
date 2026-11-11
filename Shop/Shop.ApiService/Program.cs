@@ -3,6 +3,7 @@ using Microsoft.Extensions.Caching.Memory;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using Shop.CatalogApi.Data;
+using Shop.CatalogApi.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -95,8 +96,6 @@ products.MapDelete("/{id}", async (string id, IMongoCollection<Product> col, Pro
     pc.Invalidate();
     return Results.NoContent();
 });
-
-// резервира количество: намалява наличността само ако има достатъчно (атомарно)
 products.MapPost("/{id}/reserve", async (string id, StockChangeRequest request, IMongoCollection<Product> col, ProductsCache pc) =>
 {
     if (request.Quantity <= 0) return Results.BadRequest("Количеството трябва да е поне 1.");
@@ -112,9 +111,12 @@ products.MapPost("/{id}/reserve", async (string id, StockChangeRequest request, 
     {
         // или няма такъв продукт, или наличността не стига
         var existing = await col.Find(p => p.Id == id).FirstOrDefaultAsync();
+        CatalogTelemetry.Reservations.Add(1,
+            new KeyValuePair<string, object?>("result", existing is null ? "not_found" : "insufficient"));
         return existing is null ? Results.NotFound() : Results.Conflict(existing);
     }
 
+    CatalogTelemetry.Reservations.Add(1, new KeyValuePair<string, object?>("result", "ok"));
     pc.Invalidate();
     return Results.Ok(updated);
 });

@@ -3,6 +3,8 @@ using MongoDB.Driver;
 using Shop.OrdersApi.Clients;
 using Shop.OrdersApi.Data;
 using Shop.OrdersApi.Notifications;
+using System.Diagnostics;
+using Shop.OrdersApi.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
@@ -43,13 +45,34 @@ orders.MapGet("/{id}", async (string id, IMongoCollection<Order> col) =>
     return o is null ? Results.NotFound() : Results.Ok(o);
 });
 
-orders.MapPost("/", async (CreateOrderRequest request, IMongoCollection<Order> col, CatalogClient catalog, NotificationQueue notifications, ILogger<Program> logger) => {
+orders.MapPost("/", async (CreateOrderRequest request, IMongoCollection<Order> col, CatalogClient catalog, NotificationQueue notifications, ILogger<Program> logger) =>
+{
+    // основен span на цялата поръчка
+    using var activity = OrdersTelemetry.Source.StartActivity("CreateOrder");
+    activity?.SetTag("order.lines", request.Items?.Count ?? 0);
+
+    // записва отказана поръчка в метриките и в трасето
+    void MarkRejected(string reason)
+    {
+        OrdersTelemetry.OrdersRejected.Add(1, new KeyValuePair<string, object?>("reason", reason));
+        activity?.SetStatus(ActivityStatusCode.Error, reason);
+    }
+
     if (string.IsNullOrWhiteSpace(request.CustomerName))
+    {
+        MarkRejected("validation");
         return Results.BadRequest("Името на клиента е задължително.");
+    }
     if (request.Items is null || request.Items.Count == 0)
+    {
+        MarkRejected("validation");
         return Results.BadRequest("Поръчката трябва да има поне един артикул.");
+    }
     if (request.Items.Any(l => l.Quantity <= 0))
+    {
+        MarkRejected("validation");
         return Results.BadRequest("Количеството трябва да е поне 1.");
+    }
 
     var order = new Order { CustomerName = request.CustomerName };
     var reserved = new List<(string ProductId, int Quantity)>();
@@ -57,6 +80,12 @@ orders.MapPost("/", async (CreateOrderRequest request, IMongoCollection<Order> c
     // компенсиращо действие: връща всичко, което вече е резервирано
     async Task ReleaseAllAsync()
     {
+        if (reserved.Count == 0) return;
+
+        using var compensation = OrdersTelemetry.Source.StartActivity("CompensateStock");
+        compensation?.SetTag("order.reserved_lines", reserved.Count);
+        OrdersTelemetry.StockCompensations.Add(1);
+
         foreach (var (productId, quantity) in reserved)
         {
             try
@@ -74,17 +103,26 @@ orders.MapPost("/", async (CreateOrderRequest request, IMongoCollection<Order> c
     {
         foreach (var line in request.Items)
         {
-            var result = await catalog.ReserveAsync(line.ProductId, line.Quantity);
+            ReserveResult result;
+            using (var reserve = OrdersTelemetry.Source.StartActivity("ReserveStock"))
+            {
+                reserve?.SetTag("product.id", line.ProductId);
+                reserve?.SetTag("quantity", line.Quantity);
+                result = await catalog.ReserveAsync(line.ProductId, line.Quantity);
+                reserve?.SetTag("result", result.Status.ToString());
+            }
 
             if (result.Status == ReserveStatus.NotFound)
             {
                 await ReleaseAllAsync();
+                MarkRejected("product_not_found");
                 return Results.BadRequest($"Продукт с номер {line.ProductId} не съществува.");
             }
 
             if (result.Status == ReserveStatus.Insufficient)
             {
                 await ReleaseAllAsync();
+                MarkRejected("insufficient_stock");
                 return Results.Conflict($"Недостатъчна наличност за „{result.Product?.Name}“ (налични: {result.Product?.Stock}).");
             }
 
@@ -99,20 +137,29 @@ orders.MapPost("/", async (CreateOrderRequest request, IMongoCollection<Order> c
         }
 
         await col.InsertOneAsync(order);
+
+        OrdersTelemetry.OrdersCreated.Add(1);
+        OrdersTelemetry.OrderValue.Record((double)order.Total);
+        activity?.SetTag("order.id", order.Id);
+
         notifications.TryEnqueue(new OrderNotification(
-    "OrderCreated",
-    $"Нова поръчка от {order.CustomerName} на стойност {order.Total:N2} €",
-    order.Id));
+            "OrderCreated",
+            $"Нова поръчка от {order.CustomerName} на стойност {order.Total:N2} €",
+            order.Id));
+
         return Results.Created($"/orders/{order.Id}", order);
     }
     catch (Exception ex)
     {
         // каталогът е паднал по средата или записът на поръчката е неуспешен
         logger.LogError(ex, "Грешка при създаване на поръчка, връщам резервираните количества");
+        activity?.AddException(ex);
         await ReleaseAllAsync();
+        MarkRejected("error");
         return Results.Problem("Поръчката не може да бъде обработена. Опитайте по-късно.", statusCode: 503);
     }
 });
+
 
 orders.MapPut("/{id}/status", async (string id, UpdateStatusRequest request, IMongoCollection<Order> col, NotificationQueue notifications) =>
 {
