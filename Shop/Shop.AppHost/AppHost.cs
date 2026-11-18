@@ -29,11 +29,12 @@ var orders = builder.AddProject<Projects.Shop_OrdersApi>("orders-api")
 builder.AddProject<Projects.Shop_Web>("webfrontend")
     .WithExternalHttpEndpoints()
     .WithHttpHealthCheck("/health")
+    .WithReference(mongo)
     .WithReference(catalog)
     .WithReference(orders)
     .WithReference(notifications)
+    .WithEnvironment("Mongo__Database", "usersdb" + dbSuffix)
     .WaitFor(catalog);
-
 
 // фонов процес без HTTP адрес, затова няма health check
 builder.AddProject<Projects.Shop_OrdersWorker>("orders-worker")
