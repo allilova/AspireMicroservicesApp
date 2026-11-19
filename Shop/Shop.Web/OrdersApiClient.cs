@@ -4,9 +4,11 @@ namespace Shop.Web;
 
 public class OrdersApiClient(HttpClient http)
 {
-    public async Task<List<OrderDto>> GetOrdersAsync(CancellationToken ct = default)
-        => await http.GetFromJsonAsync<List<OrderDto>>("/orders", ct) ?? [];
-
+    public async Task<List<OrderDto>> GetOrdersAsync(string? userId = null, CancellationToken ct = default)
+    {
+        var url = string.IsNullOrWhiteSpace(userId) ? "/orders" : $"/orders?userId={Uri.EscapeDataString(userId)}";
+        return await http.GetFromJsonAsync<List<OrderDto>>(url, ct) ?? [];
+    }
     public async Task<(OrderDto? Order, string? Error)> CreateOrderAsync(CreateOrderRequest request, CancellationToken ct = default)
     {
         var response = await http.PostAsJsonAsync("/orders", request, ct);

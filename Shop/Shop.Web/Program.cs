@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication;
 using MudBlazor.Services;
 using Shop.Web;
 using Shop.Web.Components;
@@ -32,8 +33,8 @@ builder.Services.AddSingleton<IPasswordHasher<AppUser>, PasswordHasher<AppUser>>
 builder.Services.AddAuthentication("Cookies")
     .AddCookie("Cookies", o =>
     {
-        o.LoginPath = "/login";
-        o.AccessDeniedPath = "/access-denied";
+        o.LoginPath = "/account/login";
+        o.AccessDeniedPath = "/account/access-denied";
     });
 builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();
@@ -75,5 +76,10 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.MapDefaultEndpoints();
+app.MapGet("/account/logout", async (HttpContext ctx) =>
+{
+    await ctx.SignOutAsync("Cookies");
+    return Results.Redirect("/");
+});
 
 app.Run();

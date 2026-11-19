@@ -14,9 +14,23 @@
         <MudSpacer />
         <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
                        Color="Color.Inherit" OnClick="() => _isDarkMode = !_isDarkMode" />
+        <AuthorizeView>
+            <Authorized>
+                <MudText Class="mr-2">Здравей, @context.User.Identity?.Name</MudText>
+                <MudButton Color="Color.Inherit" Href="account/logout" ForceLoad="true"
+                           StartIcon="@Icons.Material.Filled.Logout">Изход</MudButton>
+            </Authorized>
+            <NotAuthorized>
+                <MudButton Color="Color.Inherit" Href="account/login" ForceLoad="true">Вход</MudButton>
+                <MudButton Color="Color.Inherit" Variant="Variant.Outlined" Href="account/register" ForceLoad="true"
+                           Class="ml-2 mr-2">Регистрация</MudButton>
+            </NotAuthorized>
+        </AuthorizeView>
+        <AuthorizeView>
         <MudBadge Content="Cart.Count" Color="Color.Secondary" Overlap="true" Visible="@(Cart.Count > 0)">
             <MudIconButton Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Inherit" Href="cart" />
         </MudBadge>
+        </AuthorizeView>
     </MudAppBar>
 
     <MudDrawer @bind-Open="_drawerOpen" Elevation="1" Variant="@DrawerVariant.Responsive" ClipMode="DrawerClipMode.Always">

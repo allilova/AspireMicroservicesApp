@@ -149,8 +149,17 @@ else
         await LoadAsync();
     }
 
-    private void AddToCart(ProductDto p)
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private async Task AddToCart(ProductDto p)
     {
+        var user = (await AuthState!).User;
+        if (user.Identity?.IsAuthenticated != true)
+        {
+            Snackbar.Add("Влезте в профила си, за да пазарувате.", Severity.Info);
+            return;
+        }
+
         if (Cart.Add(p))
             Snackbar.Add($"„{p.Name}“ е добавен в количката", Severity.Success);
         else

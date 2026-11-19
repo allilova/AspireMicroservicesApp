@@ -1,0 +1,99 @@
+﻿@page "/account/register"
+@attribute [ExcludeFromInteractiveRouting]
+@layout Shop.Web.Components.Layout.AccountLayout
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Identity
+@using MongoDB.Driver
+@using Shop.Web.Date
+@using Shop.Web.Datе
+@inject IMongoCollection<AppUser> Users
+@inject IPasswordHasher<AppUser> Hasher
+@inject NavigationManager Nav
+
+<PageTitle>Регистрация</PageTitle>
+<h1>Регистрация</h1>
+
+<EditForm Model="Input" FormName="register" OnValidSubmit="RegisterAsync" method="post">
+    <DataAnnotationsValidator />
+
+    <label>
+        Име
+        <InputText @bind-Value="Input.FullName" />
+    </label>
+    <ValidationMessage For="() => Input.FullName" />
+
+    <label>
+        Имейл
+        <InputText @bind-Value="Input.Email" />
+    </label>
+    <ValidationMessage For="() => Input.Email" />
+
+    <label>
+        Парола
+        <InputText type="password" @bind-Value="Input.Password" />
+    </label>
+    <ValidationMessage For="() => Input.Password" />
+
+    <label>
+        Повтори паролата
+        <InputText type="password" @bind-Value="Input.ConfirmPassword" />
+    </label>
+    <ValidationMessage For="() => Input.ConfirmPassword" />
+
+    @if (error is not null)
+    {
+        <div class="err">@error</div>
+    }
+
+    <button type="submit">Регистрирай се</button>
+</EditForm>
+
+<div class="alt">Вече имаш акаунт? <a href="account/login">Вход</a></div>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    [SupplyParameterFromForm] private RegisterModel Input { get; set; } = new();
+    private string? error;
+
+    private async Task RegisterAsync()
+    {
+        var user = new AppUser
+        {
+            Email = Input.Email.Trim().ToLowerInvariant(),
+            FullName = Input.FullName.Trim(),
+            Role = "Customer"   // ролята никога не идва от формата
+        };
+        user.PasswordHash = Hasher.HashPassword(user, Input.Password);
+
+        try
+        {
+            await Users.InsertOneAsync(user);
+        }
+        catch (MongoWriteException ex) when (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
+        {
+            error = "Вече има акаунт с този имейл.";
+            return;
+        }
+
+        await HttpContext.SignInAsync("Cookies", AuthHelper.CreatePrincipal(user));
+        Nav.NavigateTo("/", forceLoad: true);
+    }
+
+    private class RegisterModel
+    {
+        [Required(ErrorMessage = "Въведете име.")]
+        public string FullName { get; set; } = "";
+
+        [Required(ErrorMessage = "Въведете имейл.")]
+        [EmailAddress(ErrorMessage = "Невалиден имейл.")]
+        public string Email { get; set; } = "";
+
+        [Required(ErrorMessage = "Въведете парола.")]
+        [MinLength(6, ErrorMessage = "Паролата трябва да е поне 6 символа.")]
+        public string Password { get; set; } = "";
+
+        [Compare(nameof(Password), ErrorMessage = "Паролите не съвпадат.")]
+        public string ConfirmPassword { get; set; } = "";
+    }
+}

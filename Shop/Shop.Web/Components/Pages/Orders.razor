@@ -1,4 +1,6 @@
-﻿@page "/orders"
+﻿@using System.Security.Claims
+@page "/orders"
+@attribute [Authorize]
 @inject OrdersApiClient OrdersClient
 @implements IDisposable
 
@@ -121,12 +123,25 @@ public void Dispose()
     cts?.Dispose();
 }
 
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
     private async Task LoadAsync()
     {
         try
         {
             error = null;
-            orders = await OrdersClient.GetOrdersAsync();
+            var user = (await AuthState!).User;
+            var isAdmin = user.IsInRole("Admin");
+            var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            // защита: клиент без идентификатор никога не получава всички поръчки
+            if (!isAdmin && string.IsNullOrEmpty(userId))
+            {
+                orders = [];
+                return;
+            }
+
+            orders = await OrdersClient.GetOrdersAsync(isAdmin ? null : userId);
         }
         catch (HttpRequestException)
         {

@@ -1,9 +1,15 @@
 ﻿<MudNavMenu>
     <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Начало</MudNavLink>
     <MudNavLink Href="products" Icon="@Icons.Material.Filled.Storefront">Продукти</MudNavLink>
-    <MudNavLink Href="cart" Icon="@Icons.Material.Filled.ShoppingCart">Количка</MudNavLink>
-    <MudNavLink Href="orders" Icon="@Icons.Material.Filled.ReceiptLong">Поръчки</MudNavLink>
-    <MudDivider Class="my-2" />
-<MudNavLink Href="admin/products" Icon="@Icons.Material.Filled.AdminPanelSettings">Администрация</MudNavLink>
-<MudNavLink Href="notifications" Icon="@Icons.Material.Filled.Notifications">Известия</MudNavLink>
+
+    <AuthorizeView>
+        <MudNavLink Href="cart" Icon="@Icons.Material.Filled.ShoppingCart">Количка</MudNavLink>
+        <MudNavLink Href="orders" Icon="@Icons.Material.Filled.ReceiptLong">Поръчки</MudNavLink>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="Admin">
+        <MudDivider Class="my-2" />
+        <MudNavLink Href="admin/products" Icon="@Icons.Material.Filled.AdminPanelSettings">Администрация</MudNavLink>
+        <MudNavLink Href="notifications" Icon="@Icons.Material.Filled.Notifications">Известия</MudNavLink>
+    </AuthorizeView>
 </MudNavMenu>

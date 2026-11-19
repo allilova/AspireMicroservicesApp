@@ -7,8 +7,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Aspire.Hosting" Version="17.0.0" />
-    <PackageReference Include="Aspire.Hosting.AppHost" Version="17.0.0" />
     <PackageReference Include="Aspire.MongoDB.Driver" Version="17.0.0" />
     <PackageReference Include="MudBlazor" Version="9.14.0" />
   </ItemGroup>

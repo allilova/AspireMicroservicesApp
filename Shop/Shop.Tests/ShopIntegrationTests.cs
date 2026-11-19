@@ -288,4 +288,30 @@ public class ShopIntegrationTests
 
         Assert.Equal("Confirmed", status);
     }
+
+    [Fact]
+    public async Task Orders_list_can_be_filtered_by_user()
+    {
+        using var cts = new CancellationTokenSource(Timeout);
+        await using var app = await StartAppAsync(cts.Token);
+        using var catalog = app.CreateHttpClient("catalog-api");
+        using var orders = app.CreateHttpClient("orders-api");
+        var product = await CreateProductAsync(catalog, stock: 10, price: 5m, cts.Token);
+        var userA = Guid.NewGuid().ToString("N");
+        var userB = Guid.NewGuid().ToString("N");
+
+        foreach (var uid in new[] { userA, userB })
+        {
+            var r = await orders.PostAsJsonAsync("/orders", new
+            {
+                customerName = "Тест",
+                userId = uid,
+                items = new[] { new { productId = product.Id, quantity = 1 } }
+            }, cts.Token);
+            Assert.Equal(HttpStatusCode.Created, r.StatusCode);
+        }
+
+        var mine = await orders.GetFromJsonAsync<List<OrderResult>>($"/orders?userId={userA}", cts.Token);
+        Assert.Single(mine!);
+    }
 }

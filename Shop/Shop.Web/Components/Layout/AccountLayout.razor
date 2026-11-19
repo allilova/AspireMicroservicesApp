@@ -1,0 +1,21 @@
+﻿@inherits LayoutComponentBase
+
+<div class="acc-wrap">
+    <div class="acc-card">
+        <a href="/" class="acc-brand">Shop</a>
+        @Body
+    </div>
+</div>
+
+<style>
+    body { background: #F6F7FB; font-family: Roboto, sans-serif; margin: 0; }
+    .acc-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .acc-card { background: #fff; padding: 2rem; width: 100%; max-width: 400px; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.1); }
+    .acc-brand { font-size: 1.4rem; font-weight: 500; color: #5B5BD6; text-decoration: none; }
+    .acc-card h1 { font-size: 1.6rem; margin: 1rem 0; }
+    .acc-card label { display: block; margin-top: .8rem; font-size: .9rem; }
+    .acc-card input { width: 100%; padding: .6rem; margin-top: .25rem; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 1rem; }
+    .acc-card button { width: 100%; margin-top: 1.4rem; padding: .7rem; background: #5B5BD6; color: #fff; border: 0; border-radius: 8px; font-size: 1rem; cursor: pointer; }
+    .acc-card .err, .acc-card .validation-message { color: #d32f2f; font-size: .85rem; margin-top: .3rem; }
+    .acc-card .alt { margin-top: 1rem; font-size: .9rem; }
+</style>

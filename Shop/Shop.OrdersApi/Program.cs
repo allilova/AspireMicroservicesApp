@@ -35,11 +35,12 @@ if (app.Environment.IsDevelopment())
 
 var orders = app.MapGroup("/orders");
 
-orders.MapGet("/", async (IMongoCollection<Order> col, string? status) =>
+orders.MapGet("/", async (IMongoCollection<Order> col, string? status, string? userId) =>
 {
-    var filter = string.IsNullOrWhiteSpace(status)
-        ? FilterDefinition<Order>.Empty
-        : Builders<Order>.Filter.Eq(o => o.Status, status);
+    var f = Builders<Order>.Filter;
+    var filter = f.Empty;
+    if (!string.IsNullOrWhiteSpace(status)) filter &= f.Eq(o => o.Status, status);
+    if (!string.IsNullOrWhiteSpace(userId)) filter &= f.Eq(o => o.UserId, userId);
 
     return await col.Find(filter).SortByDescending(o => o.CreatedAt).ToListAsync();
 });
@@ -80,7 +81,7 @@ orders.MapPost("/", async (CreateOrderRequest request, IMongoCollection<Order> c
         return Results.BadRequest("Количеството трябва да е поне 1.");
     }
 
-    var order = new Order { CustomerName = request.CustomerName };
+    var order = new Order { CustomerName = request.CustomerName, UserId = request.UserId };
     var reserved = new List<(string ProductId, int Quantity)>();
 
     // компенсиращо действие: връща всичко, което вече е резервирано
@@ -193,6 +194,6 @@ app.MapDefaultEndpoints();
 
 app.Run();
 
-record CreateOrderRequest(string CustomerName, List<OrderLineRequest> Items);
+record CreateOrderRequest(string CustomerName, List<OrderLineRequest> Items, string? UserId = null);
 record OrderLineRequest(string ProductId, int Quantity);
 record UpdateStatusRequest(string Status);

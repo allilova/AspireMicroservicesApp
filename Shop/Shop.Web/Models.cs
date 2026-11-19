@@ -5,5 +5,5 @@ public record OrderItemDto(string ProductId, string ProductName, decimal UnitPri
 public record OrderDto(string Id, string CustomerName, string Status, DateTime CreatedAt, List<OrderItemDto> Items, decimal Total);
 public record ProductInput(string Name, string Category, string? Description, decimal Price, int Stock, string? ImageUrl);
 public record CreateOrderLine(string ProductId, int Quantity);
-public record CreateOrderRequest(string CustomerName, List<CreateOrderLine> Items);
 public record NotificationDto(string Id, string Type, string Message, string? OrderId, DateTime CreatedAt);
+public record CreateOrderRequest(string CustomerName, List<CreateOrderLine> Items, string? UserId = null);

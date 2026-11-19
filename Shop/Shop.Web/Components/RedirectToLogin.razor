@@ -1,0 +1,17 @@
+﻿@inject NavigationManager Nav
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthState!).User;
+        var path = "/" + Nav.ToBaseRelativePath(Nav.Uri);
+
+        var target = user.Identity?.IsAuthenticated == true
+            ? "/account/access-denied"
+            : $"/account/login?returnUrl={Uri.EscapeDataString(path)}";
+
+        Nav.NavigateTo(target, forceLoad: true);
+    }
+}

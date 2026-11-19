@@ -1,0 +1,72 @@
+﻿@page "/account/login"
+@attribute [ExcludeFromInteractiveRouting]
+@layout Shop.Web.Components.Layout.AccountLayout
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Identity
+@using MongoDB.Driver
+@using Shop.Web.Date
+@using Shop.Web.Datе
+@inject IMongoCollection<AppUser> Users
+@inject IPasswordHasher<AppUser> Hasher
+@inject NavigationManager Nav
+
+<PageTitle>Вход</PageTitle>
+<h1>Вход</h1>
+
+<EditForm Model="Input" FormName="login" OnValidSubmit="LoginAsync" method="post">
+    <DataAnnotationsValidator />
+
+    <label>
+        Имейл
+        <InputText @bind-Value="Input.Email" />
+    </label>
+    <ValidationMessage For="() => Input.Email" />
+
+    <label>
+        Парола
+        <InputText type="password" @bind-Value="Input.Password" />
+    </label>
+    <ValidationMessage For="() => Input.Password" />
+
+    @if (error is not null)
+    {
+        <div class="err">@error</div>
+    }
+
+    <button type="submit">Влез</button>
+</EditForm>
+
+<div class="alt">Нямаш акаунт? <a href="account/register">Регистрация</a></div>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    [SupplyParameterFromForm] private LoginModel Input { get; set; } = new();
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+    private string? error;
+
+    private async Task LoginAsync()
+    {
+        var email = Input.Email.Trim().ToLowerInvariant();
+        var user = await Users.Find(u => u.Email == email).FirstOrDefaultAsync();
+
+        if (user is null ||
+            Hasher.VerifyHashedPassword(user, user.PasswordHash, Input.Password) == PasswordVerificationResult.Failed)
+        {
+            error = "Грешен имейл или парола.";   // едно и също съобщение, за да не се разкрива кой имейл съществува
+            return;
+        }
+
+        await HttpContext.SignInAsync("Cookies", AuthHelper.CreatePrincipal(user));
+        Nav.NavigateTo(AuthHelper.SafeReturnUrl(ReturnUrl), forceLoad: true);
+    }
+
+    private class LoginModel
+    {
+        [Required(ErrorMessage = "Въведете имейл.")]
+        public string Email { get; set; } = "";
+
+        [Required(ErrorMessage = "Въведете парола.")]
+        public string Password { get; set; } = "";
+    }
+}
