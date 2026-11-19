@@ -2,12 +2,17 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+	  <TargetFramework>net11.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AspireUseCliBundle>true</AspireUseCliBundle>
     <UserSecretsId>82d4a269-563d-43ee-a71d-47481990ccce</UserSecretsId>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting" Version="17.0.0" />
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="17.0.0" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Shop.ApiService\Shop.CatalogApi.csproj" />
